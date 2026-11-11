@@ -1,5 +1,5 @@
 [project]
-name = "picasso-narrator"
+name = "incident-narrator"
 version = "0.1.0"
 description = "사건 번들을 읽어 원인 설명과 검증된 근거 인용을 내놓는 층. picasso 의 소비자."
 requires-python = ">=3.11"
