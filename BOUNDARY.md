@@ -1,6 +1,6 @@
 # 경계 — narrator 가 무엇이고 무엇이 아닌가
 
-- 작성 2026-09-17 · 저장소로 이주 2026-09-18 · `picasso-narrator` 의 첫 문서
+- 작성 2026-09-17 · 저장소로 이주 2026-09-18 · `picasso-narrator`(지금의 `incident-narrator`)의 첫 문서
 - **이 문서가 이 계층의 규칙 정본이다.** `AGENT-02` 파트 B 와 `_source/narrator-BOUNDARY.md` 는 사본이고, 어긋나면 이 문서가 이긴다
 - 짝(picasso 저장소): `ADR 40`(번들과 대안은 계약이 아닌 조회 결과) · `ADR 43`(자격은 밖에서 선언되고 안에서 판정된다) · `docs/orchestration.md` §6(조회면과 적재 규약)
 

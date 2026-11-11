@@ -4,10 +4,10 @@
 [`eval/RESULTS.md`](eval/RESULTS.md), 왜 그렇게 설계했는지는 [`adr/`](adr/) 에 있다.
 여기 있는 것은 **그 문서들이 안 적는 것** — 지금 상태와 남은 것이다. 지난 경과는 요청 문서(`correspondence/`)와 결과 문서, git 이력에 있다.
 
-⛔ **공개본은 이력을 접었다 (2026-09-23).** GitHub 의 `picasso-narrator` 는 이 트리를 커밋 하나로 시작하고 갱신 커밋을 얹는다. 이 문서와
+⛔ **공개본은 이력을 접었다 (2026-09-23).** GitHub 의 `picasso-narrator`(지금의 `incident-narrator`)는 이 트리를 커밋 하나로 시작하고 갱신 커밋을 얹는다. 이 문서와
 `eval/RESULTS.md` · `correspondence/` 가 인용하는 커밋 해시와 「커밋 N개」는 비공개 보관본 `picasso-narrator-archive` 의 것이다.
 
-⛔ **작업 저장소를 공개본으로 옮겼다 (2026-10-13).** 작업 저장소가 공개 `picasso-narrator` 의 main 으로 바뀌어 2026-10-13부터 커밋은 공개 main 에 바로 쌓인다. 보관본 `picasso-narrator-archive` 는 지우지 않고 마지막 커밋 `0072869` 에서 멈춰 두며 더 갱신하지 않는다. 보관본의 마지막 트리와 공개본 `59f6549` 의 트리는 같다. 2026-10-13 전에 쓴 인용(이 문서, `eval/RESULTS.md`, `correspondence/`)의 해시와 「커밋 N개」는 보관본의 것이고, 그 뒤에 쓰는 인용은 공개본의 것이다.
+⛔ **작업 저장소를 공개본으로 옮겼다 (2026-10-13).** 작업 저장소가 공개 `picasso-narrator`(지금의 `incident-narrator`)의 main 으로 바뀌어 2026-10-13부터 커밋은 공개 main 에 바로 쌓인다. 보관본 `picasso-narrator-archive` 는 지우지 않고 마지막 커밋 `0072869` 에서 멈춰 두며 더 갱신하지 않는다. 보관본의 마지막 트리와 공개본 `59f6549` 의 트리는 같다. 2026-10-13 전에 쓴 인용(이 문서, `eval/RESULTS.md`, `correspondence/`)의 해시와 「커밋 N개」는 보관본의 것이고, 그 뒤에 쓰는 인용은 공개본의 것이다.
 
 ## 구현 현황
 
