@@ -1,4 +1,4 @@
-# picasso-narrator — 세션이 먼저 읽을 것
+# incident-narrator — 세션이 먼저 읽을 것
 
 이 저장소는 picasso 의 소비자인 설명 계층이다. 사건 번들을 읽어 원인 설명과 검증된 근거 인용을
 내놓고, **판정은 하지 않는다.** 규칙의 정본은 [`BOUNDARY.md`](BOUNDARY.md), 지금 상태는
