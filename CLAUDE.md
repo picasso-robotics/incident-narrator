@@ -23,10 +23,11 @@ CI에 없다. **CI 가 빨가면 고치고 나서 다음 일로 간다.**
 
 ## 2. 저장소 경계
 
-- **이 저장소 밖의 파일을 만들거나 고치지 않는다.** picasso 와 khala 는 형제 저장소이고, 서로
-  참조하지 않는다는 사실 자체가 경계의 증명이다. 편의로 한 번 넘으면 증명이 소멸한다. 필요한
-  것은 `correspondence/` 에 자체 완결된 요청으로 쓴다.
-  `.claude/hooks/boundary_guard.py` 가 형제 저장소로의 쓰기를 막는다
+- **이 저장소 밖의 파일을 만들거나 고치지 않는다.** 아키텍처 경계의 증명은 쓰기 경계와 한 방향 의존이며, 편의로 한 번 넘으면 증명이 소멸한다.
+  `incident-narrator`는 `picasso`를 내보낸 파일과 엔드포인트로만 쓰고 `picasso`는 `incident-narrator`를 부르지 않는다.
+  필요한 것은 `correspondence/`에 자체 완결된 요청으로 쓴다.
+  `.claude/hooks/boundary_guard.py`가 다른 저장소로의 쓰기를 막는다.
+  정본은 [조직 README](https://github.com/picasso-robotics/.github/blob/main/profile/README.md)에 둔다.
 - ⛔ **「받는 쪽은 이 저장소를 못 읽는다」고 적어 뒀는데 틀렸다 (2026-09-22).** 상대 저장소 세션은
   이 저장소를 읽을 수 있고, picasso 가 `handoff/narrator/` 에 떨군 회신을 **이 계층이 직접
   읽은 것**이 그 반대 방향의 증명이다. 경계는 **쓰기**의 규칙이지 읽기의 규칙이 아니다
