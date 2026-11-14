@@ -1,6 +1,6 @@
 # picasso 내보내기 실물 픽스처
 
-과거 측정 기록(`eval/st/` 의 본문 해시), 골든셋 `eval/goldenset.json` 이 품은 줄, incident-recovery 저장소의 진단 요청·측정 요청 사본이 이 세트에 바이트로 묶여 있고 질의에 contractSemver 가 실려 새 세트로는 과거 기록을 재현하지 못하므로 이 세트를 측정 기준 세트로 유지한다. 새 계약 0.10.0 세트(내보내기 버전 6)는 `tests/fixtures/picasso-0.10.0/` 에, 0.11.0 세트(버전 7, 2026-11-14)는 `tests/fixtures/picasso-0.11.0/` 에 있다.
+과거 측정 기록(`eval/st/` 의 본문 해시), 골든셋 `eval/goldenset.json` 이 품은 줄, incident-recovery 저장소의 진단 요청·측정 요청 사본이 이 세트에 바이트로 묶여 있고 질의에 contractSemver 가 실려 새 세트로는 과거 기록을 재현하지 못하므로 이 세트를 측정 기준 세트로 유지한다. 새 계약 0.10.0 세트(내보내기 버전 6)는 `tests/fixtures/picasso-0.10.0/` 에, 0.11.0 세트(버전 7, 2026-11-14)는 `tests/fixtures/picasso-0.11.0/` 에, 버전 8 세트(2026-11-14)는 `tests/fixtures/picasso-0.11.0-export-8/` 에 있다.
 
 2026-09-18, picasso `ExportFixtureTest` 가 **같은 시나리오를 두 번 구동해** 낸 두 벌(run-1·run-2)이고,
 2026-09-20 에 **재발이 있는 한 벌**(run-3)이, 2026-09-22 에 **사건 뒤에 탐색이 서는 한 벌**(run-4)이 더해져 네 벌이다. 2026-09-23 에 네 벌을 **판 5** 로 다시 받았다 — 사건 줄에 `resolution`(사람이 낸 판단, 없으면 null)이 늘었고 요약은 그대로다.

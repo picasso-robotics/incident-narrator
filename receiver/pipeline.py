@@ -4,8 +4,11 @@
 부르는지만 정한다.
 """
 
+import dataclasses
+
 from composer.query import compose, compose_search
 from explainer.ask import ask_once
+from receiver.audit import decision_audit
 from receiver.history import count_recurrence, subject
 from receiver.idempotency import idempotency_key
 import time
@@ -33,7 +36,10 @@ def explain(batch, search, limit=3, prior=()):
     records = []
     for bundle in batch.incidents:
         query = compose(bundle, recurrence=count_recurrence(bundle, history))
-        records.append(_one(bundle, query, batch.manifest, search, limit, who=subject(bundle)))
+        record = _one(bundle, query, batch.manifest, search, limit, who=subject(bundle))
+        # 판단자 원문은 설명 옆의 감사 항목으로만 남는다 — 질의(`query`)에는 종류만 들어갔다(`receiver/audit.py`).
+        audit = decision_audit(bundle)
+        records.append(dataclasses.replace(record, audit=audit) if audit else record)
     for record in batch.searches:
         records.append(_one(record, compose_search(record), batch.manifest, search, limit))
     return records

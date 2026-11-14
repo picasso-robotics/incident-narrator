@@ -11,7 +11,7 @@ AttributeError 같은 엉뚱한 예외로 터지고, 워커가 뜻밖의 예외�
 import re
 from dataclasses import dataclass
 
-from receiver.export import DECISIONS, SCHEMA_VERSIONS, unknown_decisions
+from receiver.export import DECISIONS, SCHEMA_VERSIONS, unknown_decisions, violations
 
 #: 이 계층이 읽고 쓰는 계약의 버전. **한 버전만 받는다.**
 CONTRACT_VERSION = "0.6"
@@ -175,6 +175,9 @@ def _snapshot(value):
     strange = unknown_decisions(found, value["incidents"])  # 수신기와 같은 목록이다 — 판 7 의 판단 값 둘(2026-11-14)
     if strange:
         raise ContractViolation(f"적재 판 {found} 가 들 수 있는 판단은 {list(DECISIONS[found])} 인데 {strange} 가 왔다")
+    problems = violations(found, manifest, value["incidents"], value["searches"])  # 수신기와 같은 대조다 — 판 8 의 모양(2026-11-14)
+    if problems:
+        raise ContractViolation(f"적재 판 {found} 의 모양이 아니다: {problems}")
     if not value["incidents"] and not value["searches"]:
         raise ContractViolation("snapshot 에 질의로 옮길 줄이 없다 — 두 목록이 다 비었다")
     return value
