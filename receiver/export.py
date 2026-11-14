@@ -31,9 +31,28 @@ SEARCHES = "remedy-searches.jsonl"
 #: 둘 다 받는다(사용자 결정 2026-10-08). 픽스처(`tests/fixtures/picasso`)와 정답 데이터는 5 그대로다 — 측정 기준선을
 #: 흔들지 않으려는 것이다. ⚠ 같은 시나리오의 5 번들과 6 번들은 `digest` 가 달라 한 저장소에 섞이면 재발로 한 번 더 센다.
 #:
+#: ⛔ **6 에서 7 로 올랐다 (2026-11-14, picasso §15.320 · 인계 `hold-refusal-recovery.md`).** 칸은 그대로이고
+#: 사건 줄 `resolution.decision` 이 들 수 있는 값이 둘 늘었다 — `OPERATOR_CANCEL`(사람이 사람 식별자를 든 운영자 취소
+#: 입구로 그 실행을 닫았다)과 `REMEDY_APPLIED`(발신자 거부로 선 보류에 사람이 회복 제안을 승인해 조치가 그 단위 앞에
+#: 끼었다). ⚠ **`REMEDY_APPLIED` 는 「회복 완료」가 아니다** — 조치와 원래 단위의 결과는 그 뒤의 사건 · 작업 응답이
+#: 말한다. 상위의 취소는 누가 했는지가 없어 안 실리므로 `resolution: null` 은 여전히 「판단을 안 냈다」이지 「사람이
+#: 없었다」의 증명이 아니다. 해시에서 빠지는 칸이라 `digest` 는 이 이유로는 안 바뀐다. 이 계층은 `decision` 으로
+#: 가르지 않고 질의에 결정과 가상 시각을 사실로 옮겨 실을 뿐이라(`composer/query.py` `RESOLUTION_CARRIED`) 값이
+#: 느는 것만으로 읽는 법이 안 바뀐다. 다만 **버전마다 아는 값을 적어 두고 모르는 값이 오면 멈춘다**(`DECISIONS`) —
+#: 아는 버전을 밝히고 모르는 값을 실은 줄은 형식이 바뀐 것인데, 말없이 옮기면 그 값이 질의에서 사실로 읽힌다.
+#:
 #: **아는 버전만 받는다.** 범위로 받으면 모르는 버전을 아는 척 읽게 되고, 그때 어긋난 칸이
 #: 이 계층에서는 「값이 없다」로 보인다 — 형식이 바뀐 것과 관측이 없는 것이 같은 모양이 된다.
-SCHEMA_VERSIONS = ("5", "6")
+SCHEMA_VERSIONS = ("5", "6", "7")
+
+#: 버전마다 사건 줄 `resolution.decision` 이 들 수 있는 값(picasso `docs/glossary.md` §7 · 인계 `hold-refusal-recovery.md`).
+#: 5 · 6 은 `REWORK` · `CONFIRM_DONE` 둘이고 7 에서 둘이 더해졌다. `resolution` 이 null 이거나 `decision` 키가 없는
+#: 줄은 대조하지 않는다 — 앞은 「판단을 안 냈다」이고 뒤는 질의가 이미 빈 사실로 안 싣는다.
+DECISIONS = {
+    "5": ("REWORK", "CONFIRM_DONE"),
+    "6": ("REWORK", "CONFIRM_DONE"),
+    "7": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
+}
 
 
 class UnknownSchema(Exception):
@@ -70,11 +89,30 @@ def read_export(directory):
     found = manifest.get("schemaVersion")
     if found not in SCHEMA_VERSIONS:
         raise UnknownSchema(f"읽을 줄 아는 판은 {list(SCHEMA_VERSIONS)} 인데 {found!r} 가 왔다")
+    incidents = _read_lines(directory / INCIDENTS)
+    strange = unknown_decisions(found, incidents)
+    if strange:
+        raise UnknownSchema(f"판 {found} 가 들 수 있는 판단은 {list(DECISIONS[found])} 인데 {strange} 가 왔다")
     return Export(
-        incidents=_read_lines(directory / INCIDENTS),
+        incidents=incidents,
         searches=_read_lines(directory / SEARCHES),
         manifest=manifest,
     )
+
+
+def unknown_decisions(version, incidents):
+    """그 버전이 들 수 없는 `resolution.decision` 값들(들 수 있는 것뿐이면 빈 목록).
+
+    수신기(`read_export`)와 진단 요청(`diagnose/contract.py`)이 같은 목록으로 막는다 — 두 문이 따로 알면
+    한쪽만 새 값을 배운 날 같은 줄이 한 문에서는 사실로, 다른 문에서는 거절로 읽힌다.
+    """
+    known = DECISIONS.get(version, ())
+    found = []
+    for row in incidents:
+        step = row.get("resolution") if isinstance(row, dict) else None
+        if isinstance(step, dict) and "decision" in step and step["decision"] not in known:
+            found.append(step["decision"])
+    return found
 
 
 def _read_lines(path):

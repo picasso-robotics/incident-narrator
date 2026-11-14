@@ -24,10 +24,22 @@ APPROVED = "APPROVED"
 #: ⛔ **넷을 받는다** (2026-10-02, picasso `ADR 48` 머지 전 알림). 모든 답에 답을 낸 미들웨어 인스턴스(`instanceId`)가
 #: 붙고 — `executionId` 가 인스턴스 안의 셈이라 둘을 짝지어야 시도가 갈린다 — 허락의 걸음과 소모 기록의 걸음마다
 #: 단위 식별자(`unitId`)가 붙는다. 거절 값과 `consumed` 칸의 규칙은 버전 3 그대로다. 이 계층은 인스턴스를 승인 로그에 옮겨 적는다.
-SCHEMA_VERSIONS = ("1", "2", "3", "4")
+#:
+#: ⛔ **다섯을 받는다** (2026-11-14, picasso §15.320 · `ADR 46` 대상 칸). 거절 값이 하나 늘었다 — `HUMAN_APPROVAL_REQUIRED`
+#: (발신자 거부로 선 보류의 회복 제안이라 값 없는 문과 에이전트는 못 누르고 사람의 회복 입구로만 선다. 다시 시도해도
+#: 같고 다음 걸음은 「사람에게 넘긴다」). 그리고 소모 기록에 대상 칸(`target`)이 늘 붙는다 — 접수 승인의 소모면 `null`,
+#: 보류의 회복이면 `orderVersion` · `unitId` · `attempt` 셋을 든 객체다. 인스턴스와 단위의 규칙은 버전 4 그대로다.
+#: 이 계층은 `refusal` 로 가르지 않으므로 새 값은 승인 로그에 그대로 적히고, 대상 칸은 소모 기록째 옮겨 적는다.
+#: 버전 5 를 밝힌 소모 기록에 대상 칸이 없거나 모양이 틀리면 문 앞에서 막는다.
+SCHEMA_VERSIONS = ("1", "2", "3", "4", "5")
 CONSUMED = "CONSUMED"
 #: `consumed` 칸을 늘 싣는 버전들(`ADR 46` 부터).
-WITH_CONSUMED = ("3", "4")
+WITH_CONSUMED = ("3", "4", "5")
+#: 답마다 `instanceId` 를, 걸음마다 `unitId` 를 싣는 버전들(`ADR 48` 부터).
+WITH_INSTANCE = ("4", "5")
+#: 소모 기록이 대상 칸(`target`)을 늘 싣는 버전들(§15.320 부터). 대상이 보류면 이 셋을 든다.
+WITH_TARGET = ("5",)
+TARGET_KEYS = ("orderVersion", "unitId", "attempt")
 
 
 class ApprovalRefused(Exception):
@@ -71,15 +83,15 @@ def read_outcome(status, body):
         raise ApprovalRefused(
             f"읽을 줄 아는 판은 {list(SCHEMA_VERSIONS)} 인데 {found!r} 가 왔다")
     instance = None
-    if found == "4":
-        # 버전 4 를 밝힌 답은 허락이든 거절이든 인스턴스를 싣는다. 없으면 버전 4 의 몸이 아니다 — 문 앞에서 막는다
+    if found in WITH_INSTANCE:
+        # 버전 4 부터 답은 허락이든 거절이든 인스턴스를 싣는다. 없으면 그 버전의 몸이 아니다 — 문 앞에서 막는다
         instance = body.get("instanceId")
         if not isinstance(instance, str) or not instance:
-            raise ApprovalRefused(f"판 4 답인데 instanceId 가 없다: {instance!r}")
+            raise ApprovalRefused(f"판 {found} 답인데 instanceId 가 없다: {instance!r}")
     if body.get("outcome") == APPROVED:
         steps = list(body.get("steps") or [])
-        if found == "4":
-            _units("허락의 걸음", steps)
+        if found in WITH_INSTANCE:
+            _units(found, "허락의 걸음", steps)
         return Outcome(granted=True, steps=steps, schemaVersion=found, instanceId=instance,
                        executionId=body.get("executionId"))
     consumed = None
@@ -92,8 +104,10 @@ def read_outcome(status, body):
         if not fits:
             raise ApprovalRefused(
                 f"판 {found} 의 consumed 칸이 거절 갈래와 안 맞는다: {body.get('refusal')!r} · {type(consumed).__name__}")
-        if found == "4" and consumed is not None:
-            _units("소모 기록의 걸음", consumed.get("steps") or [])
+        if found in WITH_INSTANCE and consumed is not None:
+            _units(found, "소모 기록의 걸음", consumed.get("steps") or [])
+        if found in WITH_TARGET and consumed is not None:
+            _target(found, consumed)
     return Outcome(
         granted=False,
         refusal=body.get("refusal"),
@@ -104,8 +118,20 @@ def read_outcome(status, body):
     )
 
 
-def _units(where, steps):
-    """버전 4 의 걸음마다 단위 식별자가 있나 — 없으면 버전 4 의 몸이 아니다."""
+def _units(version, where, steps):
+    """버전 4 부터 걸음마다 단위 식별자가 있나 — 없으면 그 버전의 몸이 아니다."""
     missing = [i for i, step in enumerate(steps) if not (isinstance(step, dict) and step.get("unitId"))]
     if missing:
-        raise ApprovalRefused(f"판 4 의 {where}에 unitId 가 없다: {missing}")
+        raise ApprovalRefused(f"판 {version} 의 {where}에 unitId 가 없다: {missing}")
+
+
+def _target(version, consumed):
+    """버전 5 의 소모 기록이 대상 칸을 싣나. **`null` 과 키 부재를 접지 않는다** — 앞은 「접수 승인의 소모」이고
+    뒤는 그 버전의 몸이 아니다. 접으면 어느 보류의 회복이 소모됐는지 모르는 줄이 접수 소모로 적힌다."""
+    if "target" not in consumed:
+        raise ApprovalRefused(f"판 {version} 의 소모 기록에 target 칸이 없다")
+    target = consumed["target"]
+    if target is None:
+        return
+    if not isinstance(target, dict) or any(key not in target for key in TARGET_KEYS):
+        raise ApprovalRefused(f"판 {version} 의 소모 기록 target 이 보류 대상의 모양이 아니다: {target!r}")

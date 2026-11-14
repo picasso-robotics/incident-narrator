@@ -131,6 +131,12 @@ CARRIED = (
 #: 메울 수 있었다. 이 계층이 물었고 picasso 가 사실로 실었다(`correspondence/`). null 은 「사람이
 #: 안 왔다」이고 키 부재는 「이 판이 안 낸다」인데 둘 다 안 싣는다 — 「사람 없음」을 지어내지 않는다.
 #: 재는 것은 인간 평가다 — 질의에 `REWORK` 가 실리므로 단어를 세면 복창이 통과한다.
+#:
+#: ⚠ **버전 7(2026-11-14)에서 결정 값이 넷이다** — `REWORK` · `CONFIRM_DONE` 에 `OPERATOR_CANCEL`(사람이 운영자 취소
+#: 입구로 그 실행을 닫음) · `REMEDY_APPLIED`(사람이 회복 제안을 승인해 조치가 그 단위 앞에 낌)가 더해졌다. 여기서는
+#: 값을 풀어 쓰지 않고 그대로 싣는다 — 풀이를 이 계층이 지으면 그것이 판정이 된다. 뜻은 코퍼스가 댄다. 그런데
+#: **picasso `docs/glossary.md` 에 새 값 둘의 정의가 아직 없어**(fde49d1) 설명이 `REMEDY_APPLIED` 를 「회복 완료」로,
+#: 「사람의 걸음이 없다」를 「자동 회복」으로 메울 수 있다. 모르는 값은 수신기가 막는다(`receiver/export.py` `DECISIONS`).
 RESOLUTION_CARRIED = ("decision", "at")
 
 #: 탐색 대장에서 실을 칸. `outcome` 마다 있는 칸이 다르다 — `FOUND` 에는 `cause` 가

@@ -37,13 +37,21 @@ def test_판이_다르면_거절한다(diagnose_request):
     with pytest.raises(ContractViolation, match="적재 판"):
         parse_request(diagnose_request(
             snapshot={"manifest": {"schemaVersion": 5}, "incidents": [], "searches": [{}]}))
-    # 적재 버전 6(2026-10-08)은 받는다 — 수신기와 같은 목록을 쓴다. 7 은 아직 모른다
+    # 적재 버전 6(2026-10-08)과 7(2026-11-14)은 받는다 — 수신기와 같은 목록을 쓴다. 8 은 모른다
     incident = {"incidentId": "incident-1", "digest": "9760fe546d", "robotId": "hum-02", "route": "SIGNAL"}
     six = parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "6"}, "incidents": [incident],
                                                    "searches": []}))
     assert six.snapshot["incidents"][0]["route"] == "SIGNAL"
     with pytest.raises(ContractViolation, match="적재 판"):
-        parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "7"}, "incidents": [incident],
+        parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "8"}, "incidents": [incident],
+                                                 "searches": []}))
+    # 버전 7 의 판단 값 둘은 받고, 같은 값을 버전 6 이라 밝힌 줄은 수신기와 같은 목록으로 막는다
+    cancelled = dict(incident, resolution={"decision": "OPERATOR_CANCEL", "at": "2026-09-06T00:00:04Z"})
+    seven = parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "7"}, "incidents": [cancelled],
+                                                     "searches": []}))
+    assert seven.snapshot["incidents"][0]["resolution"]["decision"] == "OPERATOR_CANCEL"
+    with pytest.raises(ContractViolation, match="OPERATOR_CANCEL"):
+        parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "6"}, "incidents": [cancelled],
                                                  "searches": []}))
 
 
