@@ -65,6 +65,9 @@ def candidates(searches):
     - `WITHHELD` 는 `steps` 키가 없다. 걸음을 모르면 부를 수가 없고, 다른 자리에서
       찾아오면 그 순간 가림이 풀린다. **못 부르는 것이지 자동 승인 자격을 판단한 것이 아니다**
     - `NONE` 은 조치 자체가 없다. 시도할 것이 없는 것과 자동 승인 자격이 없는 것은 다르다
+    - ⚠ **`FOUND` 가 「승인할 제안이 서 있다」는 뜻도 아니다 (2026-11-14, picasso §15.316 · §15.319).** 다른 실행이 그
+      기체를 쥔 채 거절되면 탐색 기록은 `FOUND` 로 남고 제안은 안 선다. 승인 가능 여부는 시도의 답(`NO_PROPOSAL` ·
+      `HUMAN_APPROVAL_REQUIRED` 등)이 정하고, 그 답은 거절로 승인 로그에 적힌다
     """
     return [s for s in searches if s.get("outcome") == FOUND and s.get("steps")]
 

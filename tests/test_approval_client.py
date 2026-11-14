@@ -66,9 +66,10 @@ def test_판_둘을_읽고_어느_판이_답했는지_적는다(approval):
 
 def test_모르는_판은_그대로_거부한다():
     """**버전을 넓힌 것이지 안 보는 것이 아니다.** 모르는 버전을 읽으면 그 뒤의 모든 칸이
-    추측이 된다. (버전 3 이 서서 모르는 버전의 예를 4 로, 버전 4 가 서서 5 로 옮겼다, 2026-10-01 · 10-02.)"""
+    추측이 된다. (버전 3 이 서서 모르는 버전의 예를 4 로, 버전 4 가 서서 5 로, 버전 5 가 서서 6 으로 옮겼다,
+    2026-10-01 · 10-02 · 11-14.)"""
     with pytest.raises(ApprovalRefused):
-        read_outcome(200, {"schemaVersion": "5", "outcome": "REFUSED", "refusal": "REVOKED", "consumed": None,
+        read_outcome(200, {"schemaVersion": "6", "outcome": "REFUSED", "refusal": "REVOKED", "consumed": None,
                            "instanceId": "mw-1"})
 
 
@@ -170,6 +171,33 @@ def test_판_4_는_답한_인스턴스와_걸음의_단위를_싣는다():
     # 인계본(10-03): 시도는 (instanceId, executionId) 쌍으로 잇는다 — 승인 로그에 둘 다 있어야 쌍이 선다
     assert (attempt.granted, attempt.instanceId, attempt.executionId, attempt.schemaVersion) == (
         True, "mw-1", "exec-1", "4")
+
+    # ⛔ **버전 5 (2026-11-14, picasso §15.320).** 인스턴스와 단위의 규칙은 그대로이고, 거절 값 `HUMAN_APPROVAL_REQUIRED`
+    # 가 늘고 소모 기록이 대상 칸(`target`)을 늘 싣는다 — 접수 승인의 소모면 null, 보류의 회복이면 셋을 든 객체다.
+    # 칸 이름은 picasso `ApprovalWireTest` 의 것이고 값은 이 테스트가 지었다. 새 거절 값은 그대로 승인 로그에 적힌다.
+    human = read_outcome(200, {"schemaVersion": "5", "outcome": "REFUSED", "refusal": "HUMAN_APPROVAL_REQUIRED",
+                               "reason": "", "consumed": None, "instanceId": "mw-1"})
+    assert (human.granted, human.refusal, human.consumed, human.schemaVersion) == (
+        False, "HUMAN_APPROVAL_REQUIRED", None, "5")
+    hold = {"orderVersion": 3, "unitId": "PUMP-01.travel", "attempt": 0}
+    for target in (None, hold):
+        record5 = dict(record, target=target)
+        got = read_outcome(200, {"schemaVersion": "5", "outcome": "REFUSED", "refusal": "CONSUMED", "reason": "",
+                                 "consumed": record5, "instanceId": "mw-1"})
+        assert got.consumed["target"] == target, "대상 칸은 소모 기록째 옮겨 적는다"
+    for bad in ({"outcome": "REFUSED", "refusal": "CONSUMED", "consumed": record, "instanceId": "mw-1"},
+                {"outcome": "REFUSED", "refusal": "CONSUMED", "consumed": dict(record, target={"unitId": "u"}),
+                 "instanceId": "mw-1"},
+                {"outcome": "REFUSED", "refusal": "CONSUMED", "consumed": dict(record, target="PUMP-01.travel"),
+                 "instanceId": "mw-1"},
+                {"outcome": "REFUSED", "refusal": "HUMAN_APPROVAL_REQUIRED", "consumed": None},
+                {"outcome": "APPROVED", "steps": bare, "instanceId": "mw-1"}):
+        with pytest.raises(ApprovalRefused):
+            read_outcome(200, {"schemaVersion": "5", "reason": "", **bad})
+    refused = try_approve(search, approval_client("http://127.0.0.1:8770/approvals", lambda *sent: (200, {
+        "schemaVersion": "5", "outcome": "REFUSED", "refusal": "HUMAN_APPROVAL_REQUIRED", "reason": "사람만",
+        "consumed": None, "instanceId": "mw-1"})), run_id="run-1")
+    assert (refused.granted, refused.refusal, refused.schemaVersion) == (False, "HUMAN_APPROVAL_REQUIRED", "5")
 
 
 def test_선언_쪽_갈래_넷이_판_2_실물로_갈린다(approval):

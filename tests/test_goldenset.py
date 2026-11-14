@@ -191,18 +191,61 @@ def test_짝지어진_탐색은_같은_기체를_가리키고_실물의_순서�
     assert paired[2]["search"]["outcome"] == "WITHHELD"
 
 
+#: 사건과 그 뒤의 탐색 사이에 설 수 있는 사람의 걸음(`resolution.decision`). 버전 5 의 `REWORK` 에 버전 7 의
+#: `OPERATOR_CANCEL`(2026-11-14, picasso §15.320)이 더해졌다. `REMEDY_APPLIED` 는 넣지 않는다 — 그 걸음은 탐색과 그
+#: 제안이 선 **뒤에** 사람이 회복을 누른 것이라 이 모양(사건 < 걸음 < 탐색)의 걸음이 아니고, 인계 번들에도 없다.
+HUMAN_STEPS = ("REWORK", "OPERATOR_CANCEL")
+#: 버전 7 인계 세트(계약 0.11.0). 골든셋은 측정 기준 세트(`TRUTH.parent`, 버전 5)의 줄을 품은 채이고, 이 세트에서는
+#: 실물의 모양만 본다(`tests/fixtures/picasso-0.11.0/README.md`).
+SET_7 = pathlib.Path(__file__).parent / "fixtures" / "picasso-0.11.0"
+
+
+def _rows(run, name):
+    text = (SET_7 / run / f"{name}.jsonl").read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
 def test_사람의_걸음은_사건과_탐색_사이에_선다():
     """버전 5(2026-09-23)의 `resolution` — 사람이 그 단위에 낸 판단이다. run-4 꼴의 쌍은 사건 →
-    사람의 재작업 → 탐색이라 그 조치 단계가 두 시각 사이에 서야 하고, run-1 꼴(탐색이 먼저 서고 그
-    실행이 사건이 된 것)에는 사람이 없어 null 이다. 지어낸 걸음은 없는 사람을 설명하게 한다."""
+    사람의 걸음 → 탐색이라 그 조치 단계가 두 시각 사이에 서야 하고, run-1 꼴(탐색이 먼저 서고 그
+    실행이 사건이 된 것)에는 사람이 없어 null 이다. 지어낸 걸음은 없는 사람을 설명하게 한다.
+
+    ⛔ **걸음의 값을 `REWORK` 하나로 못박지 않는다 (2026-11-14, picasso §15.319 · §15.320).** 남이 쥔 기체에 조치
+    제안이 안 서게 되며 picasso 가 장면을 「랙이 든 채 실패해 보류 → 사람이 그 실행을 취소로 닫음 → 탐색」으로 다시
+    지었고, 버전 7 이 그 걸음을 `OPERATOR_CANCEL` 로 싣는다. 골든셋 G10 · G11 은 버전 5 의 줄(`REWORK`)을 그대로
+    품고, 버전 7 세트의 같은 자리는 셋째 모양(사건 → 운영자 취소 → 탐색)이다. 둘 다 「사건 ≤ 사람의 걸음 < 탐색」이다 —
+    run-1 의 운영자 취소는 사건과 같은 초에 앉는다. ⚠ `resolution: null` 은 「판단을 안 냈다」이지 「사람이 없었다」의
+    증명이 아니다(상위의 취소는 누가 했는지가 없어 안 실린다). 그래서 null 을 「자동 회복」의 근거로 세지 않는다."""
     paired = {e["id"]: e for e in load(GOLDEN) if e["kind"] == "incident" and e.get("search")}
 
     assert paired["G1"]["bundle"]["resolution"] is None
     for id_ in ("G10", "G11"):
         bundle, search = paired[id_]["bundle"], paired[id_]["search"]
         step = bundle["resolution"]
-        assert step["decision"] == "REWORK", id_
-        assert bundle["at"] < step["at"] < search["at"], f"{id_}: 걸음이 사건과 탐색 사이에 없다"
+        assert step["decision"] in HUMAN_STEPS, id_
+        assert bundle["at"] <= step["at"] < search["at"], f"{id_}: 걸음이 사건과 탐색 사이에 없다"
+
+    # 버전 7 세트의 run-4 — 셋째 모양. 같은 로봇의 사건에 운영자 취소가 실리고 그 뒤에 탐색이 선다. 짝 없는 사건은 null
+    incidents, searches = _rows("run-4", "incidents"), _rows("run-4", "remedy-searches")
+    for search in searches:
+        before = [i for i in incidents if i["robotId"] == search["robotId"] and i["at"] < search["at"]]
+        assert before, f'{search["searchId"]}: 앞선 사건이 없다'
+        step = before[-1]["resolution"]
+        assert step["decision"] == "OPERATOR_CANCEL", search["searchId"]
+        assert before[-1]["at"] <= step["at"] < search["at"], f'{search["searchId"]}: 걸음이 사건과 탐색 사이에 없다'
+    assert [s["outcome"] for s in searches] == ["FOUND", "WITHHELD"]
+    lone = [i for i in incidents if i["robotId"] not in {s["robotId"] for s in searches}]
+    assert [i["resolution"] for i in lone] == [None]
+
+    # 버전 7 세트의 run-1 — G1 꼴은 그대로 선다(탐색이 먼저 서고 같은 주문의 실행이 사건이 됨, 사람 없음). 다만 같은
+    # 기체에 앞선 사건이 새로 있고 그 사건은 운영자 취소로 닫혔다 — 이 쌍도 「사건 ≤ 걸음 < 탐색」이다
+    incidents, searches = _rows("run-1", "incidents"), _rows("run-1", "remedy-searches")
+    found = next(s for s in searches if s["outcome"] == "FOUND")
+    became = [i for i in incidents if i["jobOrderId"] == found["jobOrderId"] and i["at"] > found["at"]]
+    assert [i["resolution"] for i in became] == [None]
+    earlier = [i for i in incidents if i["robotId"] == found["robotId"] and i["at"] < found["at"]]
+    assert [i["resolution"]["decision"] for i in earlier] == ["OPERATOR_CANCEL"]
+    assert earlier[0]["at"] <= earlier[0]["resolution"]["at"] < found["at"]
 
 
 def test_탐색_줄_항목은_실물_대장의_줄이다():
