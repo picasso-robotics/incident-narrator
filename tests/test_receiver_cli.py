@@ -130,7 +130,7 @@ def test_낯선_판과_구동_열쇠_없는_한_벌은_문장으로_멈춘다(tm
     strange = tmp_path / "strange"
     shutil.copytree(export_dir("run-1"), strange)
     manifest = json.loads((strange / "manifest.json").read_text(encoding="utf-8"))
-    manifest["schemaVersion"] = "9"
+    manifest["schemaVersion"] = "10"
     (strange / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     args = build_parser().parse_args([str(strange), "--out", str(tmp_path / "out")])
 

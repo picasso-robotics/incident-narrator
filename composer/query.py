@@ -13,6 +13,9 @@
 `RESOLUTION_CARRIED` 가 적는다. 판 8 의 판단자는 종류(`kind`)만 싣고 원문 id 는 안 싣는다(`DECIDER_CARRIED`).
 
 **판 8 의 임무 버전과 현장 설정 셋은 의도에서 꺼내 따로 싣는다** — 널의 뜻이 「모름」이 아니라서다(`INTENT_LIFTED`).
+
+**판 9 의 재작업 근거는 확인을 말하는 관측만 조치 단계 안에 싣는다**(`REWORK_CHECKED`) — 관측 없음과 설비 침묵을 확인으로도,
+「확인 안 함」으로도 짓지 않으려는 것이다. 재검사 실패 줄에는 그 갈래의 뜻을 표지로 싣는다(`REWORK_NOT_ISSUED`).
 """
 
 import json
@@ -148,6 +151,51 @@ RESOLUTION_CARRIED = ("decision", "at")
 #: id 는 호출자의 주장이지 인증 증명이 아니고(picasso 인계 `audit-export-8.md`), 원문 id 를 읽는 자리는 감사 기록과 승인자
 #: 연결뿐이다(`receiver/audit.py`). 질의에 id 를 실으면 설명이 그 글자를 「누가 판단했다」는 확인된 사실로 옮긴다.
 DECIDER_CARRIED = "decidedByKind"
+
+#: 판 9 의 재작업 근거(`resolution.reworkBasis`, picasso §15.323 · 인계 `rework-generalized.md`)에서 **확인을 말하는 관측만** 추려
+#: 조치 단계 안에 싣는 칸. 세 갈래이고 각각 관측 시각(`at`)을 단다 — 손은 원천 시각이 없어 읽기를 마친 시각(`readAt`), 자리는
+#: 설비가 준 `observedAt` 이 있으면 그것이고 없으면 `readAt` 이다.
+#:
+#: - 손 칸이 있고 `kind` 가 `HOLD_KIND_EMPTY` 일 때만 `robotHandFree` — 그 기체의 빈손을 확인했다
+#: - 출발 칸이 있고 `occupied` 가 참일 때만 `sourceOccupied` — 그 자리에 무엇이 있음을 확인했다. **신원(`identity`)은 늘 함께 싣고
+#:   널이면 「모름」으로 적힌다** — 출발 선언이 `OPTIONAL` 이면 `occupied: true` 와 신원 널은 「무엇인지 모르는 것이 있다」이지 그
+#:   자재의 확인이 아니다
+#: - 목적지 칸이 있고 `occupied` 가 거짓일 때만 `destinationVacant` — 빈 목적지를 확인했다
+#:
+#: ⚠ **그 밖은 안 싣는다.** `occupied: null` 은 「설비가 말이 없었다」이지 「비었다」도 확인도 아니다. 칸 자체가 널이면 묻지 않은
+#: 것이고, `{robotId, readAt}` 만 든 근거(점검 · 이동 · 건너뛴 쌍의 표지)는 「관측 없음」이다 — 그때 이 칸이 아예 안 서서 설명이
+#: 「확인했다」도 「확인하지 않고 재작업했다」도 말할 재료가 없다(묻지 않는 것이 규칙이다). 확인을 말하지 않는 관측값(쥔 손 · 빈
+#: 출발 · 찬 목적지)은 받은 재작업에 나오지 않는 조합이라(게이트가 거부한다) 다른 주장으로 옮기지 않는다. 이 계층이 근거의 칸을
+#: 고르는 것이지 관측을 짓는 것이 아니다.
+REWORK_CHECKED = "reworkChecked"
+HOLD_EMPTY = "HOLD_KIND_EMPTY"
+
+#: 판 9 의 재검사 실패(`failureClass = REWORK_RECHECK`) 줄에 싣는 표지 — 사람이 낸 재작업을 받았으나 첫 발행 직전에 손 · 자리가
+#: 달라(또는 읽지 못해) 그 시도를 내지 않았다는 picasso 의 뜻이다(ADR 53 결정 9). **기체가 실패한 것이 아니고 태스크가 없다.**
+#: `fault` 가 널이라 사실에 결함이 안 실리는데, 그 빈자리를 설명이 「기체 고장」으로 메우지 않게 갈래의 뜻을 옮긴다(`AWAITS_PERSON`
+#: 과 같은 이유 — 이 계층의 판정이 아니다).
+REWORK_RECHECK = "REWORK_RECHECK"
+REWORK_NOT_ISSUED = "reworkNotIssued"
+
+
+def _rework_checked(basis):
+    """재작업 근거에서 확인을 말하는 관측만 추린다(`REWORK_CHECKED`). 없으면 빈 사전."""
+    if not isinstance(basis, dict):
+        return {}
+    read_at = basis.get("readAt")
+    checked = {}
+    hold = basis.get("hold")
+    if isinstance(hold, dict) and hold.get("kind") == HOLD_EMPTY:
+        checked["robotHandFree"] = {"robotId": basis.get("robotId"), "at": read_at}
+    source = basis.get("source")
+    if isinstance(source, dict) and source.get("occupied") is True:
+        checked["sourceOccupied"] = {"slotId": source.get("slotId"), "identity": source.get("identity"),
+                                     "at": source.get("observedAt") or read_at}
+    destination = basis.get("destination")
+    if isinstance(destination, dict) and destination.get("occupied") is False:
+        checked["destinationVacant"] = {"slotId": destination.get("slotId"),
+                                        "at": destination.get("observedAt") or read_at}
+    return checked
 
 #: 판 8 의 의도 칸 넷(`intent.missionVersion` · `siteSettingsVersion` · `inDoubtGrace` · `stallWindow`). **의도 사전에서 꺼내
 #: 따로 싣는다** — 그대로 두면 `_flat` 이 널을 「모름」으로 적는데, 이 넷의 널은 모름이 아니다. 임무 버전의 널은 코드 정의
@@ -389,8 +437,14 @@ def compose(bundle, search=None, recurrence=None):
         decider = resolution.get("decidedBy")
         if isinstance(decider, dict) and decider.get("kind"):
             step[DECIDER_CARRIED] = decider["kind"]
+        checked = _rework_checked(resolution.get("reworkBasis"))
+        if checked:  # 판 9 — 확인을 말하는 관측만. 관측 없음 · 침묵은 안 선다(`REWORK_CHECKED`)
+            step[REWORK_CHECKED] = checked
         if step:  # 결정도 시각도 없는 걸음은 빈 사실이다 — 안 싣는다
             facts["resolution"] = step
+
+    if read_field(bundle, "failureClass") == REWORK_RECHECK:
+        facts[REWORK_NOT_ISSUED] = True
 
     facts.update(_search_facts(search or {}))
 
