@@ -20,7 +20,7 @@ LLM 이 닿는 곳은 explainer 하나. 사건당 한 번 묻는다
 ### 이 계층이 하는 일
 
 - **설명 경로**: 번들(picasso 인계 번들)을 읽어 사건마다 원인 설명과 검증된 인용을 붙이고 기록하며, LLM 이 닿는 곳은 `explainer` 하나이고 사건당 한 번 묻는다. 파이프라인 실행은 `python -m receiver <한 벌> --out <기록>`.
-- **승인 시도**: 승인 엔드포인트 버전 1~4 를 읽고 버전 4 의 `instanceId` · `executionId` 를 승인 로그에 적으며, 같은 실행의 같은 줄은 다시 안 부른다(2026-10-03). picasso 승인 엔드포인트는 `--approve <창구 URL>` 로만 부르고 기본은 끔이다.
+- **승인 시도**: 승인 엔드포인트 버전 1~5 를 읽고 버전 4 부터의 `instanceId` · `executionId`, 버전 5 의 소모 대상(`target`)과 거절 값 `HUMAN_APPROVAL_REQUIRED` 를 승인 로그에 적으며, 같은 실행의 같은 줄은 다시 안 부른다(2026-10-03). picasso 승인 엔드포인트는 `--approve <창구 URL>` 로만 부르고 기본은 끔이다. 승인 창구의 운영 주체가 incident-recovery 로 정리되어 `--approve` 는 시연용 잔재로 문서에 적었다(2026-11-14, `BOUNDARY.md` §6.7).
 - **코퍼스 피드백 루프**: 설명 기록을 테넌트 `narrator`, 출처 등급 `machine_written` 의 khala 적재 입력 모양으로 낸다(2026-09-23 적재). 실행은 `python -m corpus.export`.
 - **운영자 질의**: 사건 파이프라인은 지난 설명을 못 읽으며(토큰 A), 지난 설명을 근거로 인용하는 질의를 친다. 토큰 B 로 `tenant` 없이 실행.
 - **진단 워커**: koshei 의 액티비티 `diagnose` 를 받아 후보 하나를 권하거나 ESCALATE 하고, 결과 캐시로 같은 시도는 khala 를 다시 안 부른다. 큐 `narrator-tq` 에서 `python -m diagnose.worker` (진단 계약 0.6, 2026-10-04 에 koshei 에피소드 워크플로부터 khala 까지 끝까지 한 번 돎).
@@ -136,7 +136,9 @@ claude_llm_bridge  127.0.0.1:8900     호스트 프로세스. claude CLI 를 she
 - 탐색 쌍은 평가에만 있다. 실행 경로는 `BOUNDARY.md` §4.1 대로 사건과 탐색을 각각 다루며, 재는 것과 도는 것이 갈리는 유일한 자리라 `eval/run.py` 의 `query_for` 머리말에 적어 뒀다.
 - 진단 응답에 검색 부분 실패를 실을지는 계약 버전을 올리는 일이라 koshei 가 정한다. koshei 는 그것을 조치 자동 승인을 다시 켜는 조건 셋의 하나로 적었다.
 - 내보내기 버전 5 와 6 을 둘 다 받는다(2026-10-08, 사용자 결정. `receiver/export.py` 의 `SCHEMA_VERSIONS` 와 `diagnose/contract.py` 의 같은 목록). 픽스처와 정답 데이터는 버전 5 에 둔 채라 측정 기준은 안 움직인다. 같은 시나리오를 버전 5 와 6 으로 내보내면 `digest` 가 달라, 둘이 한 기록 저장소에 들어가면 재발이 한 번 더 세어진다.
+- 내보내기 버전 7 도 받는다(2026-11-14, picasso §15.319 · §15.320). 칸은 그대로이고 `resolution.decision` 에 `OPERATOR_CANCEL` · `REMEDY_APPLIED` 가 더해졌다. 버전마다 들 수 있는 판단 값을 `receiver/export.py` 의 `DECISIONS` 에 적어 두고 모르는 값이면 수신기와 진단 요청이 함께 멈춘다. 값은 질의에 그대로 실리지만 picasso 용어집에 새 값 둘의 정의가 아직 없어 설명이 `REMEDY_APPLIED` 를 「회복 완료」로 메울 수 있다(`BOUNDARY.md` §8).
 - 계약 SemVer 0.10.0 세트를 `tests/fixtures/picasso-0.10.0/` 에 들였으나 측정 기준은 기존 `tests/fixtures/picasso/`(계약 0.9.0)에 둔 채로 유지한다. 과거 측정 기록(`eval/st/` 의 본문 해시), 골든셋 `eval/goldenset.json` 이 품은 줄, incident-recovery 저장소의 진단 요청·측정 요청 사본이 기존 세트에 바이트로 묶여 있고 질의에 contractSemver 가 실려 새 세트로는 과거 기록을 재현하지 못하기 때문이다. 측정 기준을 새 세트로 옮기는 일은 다음에 실측을 다시 돌릴 때 함께 한다.
+- 계약 SemVer 0.11.0 · 내보내기 버전 7 세트를 `tests/fixtures/picasso-0.11.0/` 에 들였다(2026-11-14, picasso `fde49d1`). 0.10.0 세트(버전 6)는 버전 6 을 계속 받으므로 남긴다. run-1 · run-2 에 같은 기체의 앞선 사건(운영자 취소로 닫힘)이 새로 서고 사건 번호가 하나씩 밀렸으며, run-4 는 셋째 모양(사건 → 운영자 취소 → 탐색)이다. 골든셋 G1 · G10 · G11 은 측정 기준 세트의 줄(버전 5, `REWORK`)을 그대로 품고, 사람의 걸음 시험은 `REWORK` 하나를 요구하지 않고 `REWORK` · `OPERATOR_CANCEL` 을 「사건 ≤ 걸음 < 탐색」으로 받으며 새 세트의 셋째 모양을 함께 본다. 골든셋의 짝을 새 세트로 다시 뽑는 일은 측정 기준을 옮길 때 함께 한다.
 
 ### 작업 이력 — 닫힌 일의 한 줄 요약
 - 승인 시도가 파이프라인 실행에 물렸고 실제 서비스 승인 엔드포인트로 두 차례 파이프라인을 실행했다(2026-09-22, `tests/fixtures/approvals/live-2026-09-22-approvals.jsonl`).
@@ -158,6 +160,7 @@ claude_llm_bridge  127.0.0.1:8900     호스트 프로세스. claude CLI 를 she
 - 답변 카드 파서의 헤더 윈도우가 빈 줄로 띄운 라벨을 12줄 밖까지 따라간다(2026-10-04, `8d7e5d8`, `docs/superpowers/plans/2026-10-04-머리-창의-빈-줄.md`).
 - 검색 텍스트 칸(`search_text`)을 사전 등록하고 두 경로를 한 회차 실행해 둘 다 승격됐다(2026-10-07, `eval/RESULTS.md` 「검색 텍스트 칸 — 두 경로」).
 - 운영 수신기와 진단 워커가 `search_text` = Q3 을 싣게 바꾸고 측정 본문과의 같음을 시험으로 보인 뒤 실제 서비스에서 배선을 확인했다(2026-10-07, `c3fa6fc`, `docs/superpowers/specs/2026-10-07-운영-검색-텍스트.md`).
+- picasso 인계(남이 쥔 기체의 제안 차단 · 운영자 취소와 발신자 거부 뒤 회복)를 들였다. 내보내기 버전 7 과 판단 값 둘, 승인 엔드포인트 버전 5, 계약 0.11.0 세트, 골든셋 사람의 걸음 시험의 셋째 모양(2026-11-14).
 
 ## 쓰는 규약 — picasso 를 따른다
 
