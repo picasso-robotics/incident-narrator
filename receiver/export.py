@@ -51,9 +51,18 @@ SEARCHES = "remedy-searches.jsonl"
 #: `(runId, digest)` 그대로다. 읽는 자리: 재발 셈의 접기(`receiver/history.py`), 질의 사실(`composer/query.py`), 판단자 원문의
 #: 감사 자리(`receiver/audit.py`). 모양은 `violations` 가 판마다 대조하고 어긋나면 멈춘다.
 #:
+#: ⛔ **8 에서 9 로 올랐다 (2026-11-15, picasso §15.323 · 인계 `rework-generalized.md`).** 운영자 재작업의 일반화다. 판 8 의 칸은
+#: 그대로이고 사건 줄 `resolution` 에 재작업 근거 `reworkBasis` 한 칸이 붙었다 — 판단이 있으면 언제나 키가 있고 값은 널이거나
+#: `{robotId, hold, source, destination, readAt}` 이며 **안의 빈 칸도 널로 실린다.** 값은 보류가 아닌 재작업을 받을 때 묶음 뿌리와
+#: 물리 게이트를 지난 단위의 `REWORK` 판단에만 있다(`pick_place` 계열은 손 · 출발 · 목적지, 점검 · 이동과 건너뛴 쌍은
+#: `{robotId, readAt}` 표지 — 관측 없음). 값 조합도 는다 — 시도 실패 인시던트(`unresolved: false`)에 `REWORK` 가 서고, 첫 발행
+#: 직전 재검사를 못 지난 시도는 태스크 없는 실패 인시던트(`failureClass = REWORK_RECHECK`, `fault` 널)를 연다. 판단 칸이라 해시에서
+#: 빠져 **같은 시드의 `digest` 는 판 8 과 같다.** 읽는 자리: 질의의 확인 사실(`composer/query.py` `REWORK_CHECKED`)과 재검사 실패
+#: 표지(`REWORK_NOT_ISSUED`). 모양은 `violations` 가 대조한다(`_resolution_9`).
+#:
 #: **아는 버전만 받는다.** 범위로 받으면 모르는 버전을 아는 척 읽게 되고, 그때 어긋난 칸이
 #: 이 계층에서는 「값이 없다」로 보인다 — 형식이 바뀐 것과 관측이 없는 것이 같은 모양이 된다.
-SCHEMA_VERSIONS = ("5", "6", "7", "8")
+SCHEMA_VERSIONS = ("5", "6", "7", "8", "9")
 
 #: 버전마다 사건 줄 `resolution.decision` 이 들 수 있는 값(picasso `docs/glossary.md` §7 · 인계 `hold-refusal-recovery.md`).
 #: 5 · 6 은 `REWORK` · `CONFIRM_DONE` 둘이고 7 에서 둘이 더해졌다. `resolution` 이 null 이거나 `decision` 키가 없는
@@ -63,6 +72,7 @@ DECISIONS = {
     "6": ("REWORK", "CONFIRM_DONE"),
     "7": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
     "8": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
+    "9": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
 }
 
 #: 버전마다 탐색 줄 `outcome` 이 들 수 있는 값(picasso `docs/orchestration.md` §6 레지스터의 하위 범주). 판 4 의
@@ -73,6 +83,8 @@ OUTCOMES = {
     "6": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING"),
     "7": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING"),
     "8": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING",
+          "SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"),
+    "9": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING",
           "SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"),
 }
 
@@ -90,6 +102,20 @@ IDENTITY_KEYS_8 = ("incidentKey", "firstOpenedAt", "openingKind", "attempt")
 INTENT_KEYS_8 = ("missionVersion", "siteSettingsVersion", "inDoubtGrace", "stallWindow")
 #: 함께 널이거나 함께 있는 셋(picasso 인코더가 단언). 봉인 라운드의 값이다.
 SITE_SETTINGS = ("siteSettingsVersion", "inDoubtGrace", "stallWindow")
+
+#: 판 8 의 모양(정체성 · 판단자 · 의도 · `instanceId`)을 지는 버전들. 판 9 는 판 8 의 칸을 그대로 지고 근거 한 칸을 더한다.
+IDENTITY_VERSIONS = ("8", "9")
+
+#: 판 9 의 재작업 근거(`resolution.reworkBasis`, picasso §15.323)에 키가 있어야 하는 칸 — 안의 빈 칸도 널로 실린다(인계
+#: `rework-generalized.md`). 손(`hold`)은 `{kind, objectRef}`, 자리(`source` · `destination`)는 `{slotId, occupied, identity,
+#: observedAt}` 이고 셋 다 객체 자체가 널이면 묻지 않은 것이다.
+REWORK_BASIS_KEYS = ("robotId", "hold", "source", "destination", "readAt")
+REWORK_HOLD_KEYS = ("kind", "objectRef")
+REWORK_SLOT_KEYS = ("slotId", "occupied", "identity", "observedAt")
+
+#: 판 9 에서 생긴 분류 — 받은 `pick_place` 재작업이 첫 발행 직전 재검사를 못 지나 그 시도를 내지 않고 연 태스크 없는 실패
+#: 인시던트(picasso ADR 53 결정 9). `unresolved: false` 이고 `fault` 는 널이다. 앞 판이 이 분류를 실어 오면 형식이 어긋난 것이다.
+REWORK_RECHECK = "REWORK_RECHECK"
 
 
 class UnknownSchema(Exception):
@@ -168,6 +194,8 @@ def violations(version, manifest, incidents, searches):
       `firstOpenedAt` 은 함께 널이고, 널은 `REOPENED` 에만 온다(새로 선 인시던트에는 언제나 값이 있다)
     - 판 8 의도: 네 칸의 키가 있고 현장 설정 셋이 함께 널이거나 함께 있는가
     - 판 8 판단: `resolution` 이 있으면 `decidedBy` 가 `{id, kind}` 이고 `kind` 가 아는 값인가
+    - 판 9 는 판 8 의 대조를 다 받고, 판단마다 `reworkBasis` 키가 있으며 값이 널이거나 근거의 모양인가(`_resolution_9`),
+      재검사 실패(`REWORK_RECHECK`) 줄이 `unresolved: false` 이고 `fault` 가 널인가. 판 8 까지는 `REWORK_RECHECK` 를 들 수 없다
     """
     found = []
     known = OUTCOMES.get(version, ())
@@ -179,14 +207,72 @@ def violations(version, manifest, incidents, searches):
             found.append(f"{row.get('searchId')}: 모르는 outcome {outcome!r}")
         elif outcome in STEPLESS and "steps" in row:
             found.append(f"{row.get('searchId')}: {outcome} 에 steps 키가 있다")
-    if version != "8":
+    if version != "9":
+        found.extend(f"{row.get('incidentId')}: 판 {version} 은 {REWORK_RECHECK} 를 들 수 없다" for row in incidents
+                     if isinstance(row, dict) and row.get("failureClass") == REWORK_RECHECK)
+    if version not in IDENTITY_VERSIONS:
         return found
     if manifest is not None and not (isinstance(manifest.get("instanceId"), str) and manifest["instanceId"]):
         found.append("manifest: instanceId 가 없다")
     for row in incidents:
         if isinstance(row, dict):
             found.extend(f"{row.get('incidentId')}: {p}" for p in _incident_8(row))
+            if version == "9":
+                found.extend(f"{row.get('incidentId')}: {p}" for p in _incident_9(row))
     return found
+
+
+def _incident_9(row):
+    """판 9 사건 줄 한 줄의 어긋남 — 판 8 의 대조 위에 더하는 것만."""
+    problems = []
+    if row.get("failureClass") == REWORK_RECHECK:
+        if row.get("unresolved") is not False:
+            problems.append(f"{REWORK_RECHECK} 는 unresolved: false 다: {row.get('unresolved')!r}")
+        if row.get("fault") is not None:
+            problems.append(f"{REWORK_RECHECK} 는 태스크가 없어 fault 가 널이다")
+    step = row.get("resolution")
+    if isinstance(step, dict):
+        problems.extend(_resolution_9(step))
+    return problems
+
+
+def _resolution_9(step):
+    """판 9 판단 한 건의 재작업 근거 대조. 키가 빠지면 「묻지 않았다」(널)와 「이 판이 안 낸다」가 같은 모양이 된다."""
+    if "reworkBasis" not in step:
+        return ["resolution 에 reworkBasis 키가 없다"]
+    basis = step["reworkBasis"]
+    if basis is None:
+        return []
+    if not isinstance(basis, dict):
+        return [f"reworkBasis 는 널이거나 객체다: {basis!r}"]
+    if step.get("decision") != "REWORK":
+        return [f"reworkBasis 는 REWORK 판단에만 값이 있다: {step.get('decision')!r}"]
+    missing = [k for k in REWORK_BASIS_KEYS if k not in basis]
+    if missing:
+        return [f"reworkBasis 에 {missing} 키가 없다"]
+    problems = []
+    for key in ("robotId", "readAt"):
+        if not (isinstance(basis[key], str) and basis[key]):
+            problems.append(f"reworkBasis.{key} 는 비지 않은 글자다: {basis[key]!r}")
+    hold = basis["hold"]
+    if hold is not None:
+        if not (isinstance(hold, dict) and all(k in hold for k in REWORK_HOLD_KEYS)
+                and isinstance(hold["kind"], str) and _str_or_none(hold["objectRef"])):
+            problems.append(f"reworkBasis.hold 가 {{kind, objectRef}} 가 아니다: {hold!r}")
+    for name in ("source", "destination"):
+        slot = basis[name]
+        if slot is None:
+            continue
+        if not (isinstance(slot, dict) and all(k in slot for k in REWORK_SLOT_KEYS)
+                and isinstance(slot["slotId"], str) and slot["slotId"]
+                and (slot["occupied"] is None or isinstance(slot["occupied"], bool))
+                and _str_or_none(slot["identity"]) and _str_or_none(slot["observedAt"])):
+            problems.append(f"reworkBasis.{name} 가 {{slotId, occupied, identity, observedAt}} 가 아니다: {slot!r}")
+    return problems
+
+
+def _str_or_none(value):
+    return value is None or isinstance(value, str)
 
 
 def _incident_8(row):

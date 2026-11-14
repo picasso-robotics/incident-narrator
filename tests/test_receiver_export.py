@@ -52,7 +52,7 @@ def test_모르는_판은_읽지_않는다(tmp_path):
     export = read_export(tmp_path)
     assert export.manifest["schemaVersion"] == "6"
     assert export.incidents[0]["route"] == "SIGNAL" and export.incidents[0]["failureClass"] == "SIGNAL_DEADLINE"
-    for unknown in ("4", "9", 6):
+    for unknown in ("4", "10", 6):
         (tmp_path / "manifest.json").write_text(f'{{"schemaVersion": {unknown!r}}}'.replace("'", '"'), encoding="utf-8")
         with pytest.raises(UnknownSchema):
             read_export(tmp_path)
@@ -139,4 +139,67 @@ def test_판_8_의_탐색_갈래는_판_7_이_들_수_없다(tmp_path):
     for outcome in ("SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"):
         _write(tmp_path, {"schemaVersion": "7", "runId": "run-1"}, [], [{"searchId": "search-1", "outcome": outcome}])
         with pytest.raises(UnknownSchema, match=outcome):
+            read_export(tmp_path)
+
+
+MANIFEST_9 = dict(MANIFEST_8, schemaVersion="9")
+PERSON = {"id": "op-1", "kind": "PERSON"}
+
+
+def _basis(**changes):
+    basis = {"robotId": "hum-02", "hold": {"kind": "HOLD_KIND_EMPTY", "objectRef": None},
+             "source": {"slotId": "SEQ-IN-02.BIN-A", "occupied": True, "identity": "ENGINE-COVER-A",
+                        "observedAt": "2026-09-06T00:00:02Z"},
+             "destination": {"slotId": "RACK-204.S01", "occupied": False, "identity": None, "observedAt": None},
+             "readAt": "2026-09-06T00:00:04Z"}
+    basis.update(changes)
+    return basis
+
+
+def _decided(decision="REWORK", **basis):
+    step = {"decision": decision, "at": "2026-09-06T00:00:04Z", "decidedBy": PERSON}
+    step.update(basis)
+    return step
+
+
+def test_판_9_를_받고_재작업_근거와_재검사_실패의_모양이_어긋나면_멈춘다(tmp_path):
+    """판 9(2026-11-15, picasso §15.323)는 판 8 의 칸 위에 `resolution.reworkBasis` 를 더한다 — 판단마다 키가 있고 값은 널이거나
+    근거이며 안의 빈 칸도 널로 실린다. 시도 실패(`unresolved: false`)의 `REWORK` 와 태스크 없는 재검사 실패(`REWORK_RECHECK`)도
+    받는다. 판 8 의 대조는 그대로 걸린다."""
+    rows = [
+        _eight(unresolved=False, failureClass="GRASP_FAILED", resolution=_decided(reworkBasis=_basis())),
+        _eight(incidentId="incident-2", digest="d2", unresolved=False,
+               resolution=_decided(reworkBasis={"robotId": "quad-01", "hold": None, "source": None, "destination": None,
+                                                "readAt": "2026-09-06T00:00:04Z"})),
+        _eight(incidentId="incident-3", digest="d3", resolution=_decided("OPERATOR_CANCEL", reworkBasis=None)),
+        _eight(incidentId="incident-4", digest="d4", failureClass="REWORK_RECHECK", unresolved=False, fault=None, attempt=1),
+    ]
+    _write(tmp_path, MANIFEST_9, rows)
+    export = read_export(tmp_path)
+    assert [r["resolution"] and r["resolution"]["reworkBasis"] is not None for r in export.incidents] == [
+        True, True, False, None]
+
+    broken = {
+        "reworkBasis 키가 없다": [_eight(resolution=_decided())],
+        "REWORK 판단에만": [_eight(resolution=_decided("CONFIRM_DONE", reworkBasis=_basis()))],
+        r"\['readAt'\] 키가 없다": [_eight(resolution=_decided(reworkBasis={k: v for k, v in _basis().items() if k != "readAt"}))],
+        "robotId 는 비지 않은": [_eight(resolution=_decided(reworkBasis=_basis(robotId="")))],
+        "hold 가": [_eight(resolution=_decided(reworkBasis=_basis(hold={"kind": "HOLD_KIND_EMPTY"})))],
+        "destination 가": [_eight(resolution=_decided(reworkBasis=_basis(
+            destination={"slotId": "RACK-204.S01", "occupied": "false", "identity": None, "observedAt": None})))],
+        "unresolved: false": [_eight(failureClass="REWORK_RECHECK", unresolved=True, fault=None)],
+        "fault 가 널": [_eight(failureClass="REWORK_RECHECK", unresolved=False, fault={"failureClass": "REWORK_RECHECK"})],
+        "openingKind": [_eight(openingKind="RESUMED", resolution=_decided(reworkBasis=None))],
+    }
+    for needle, incidents in broken.items():
+        _write(tmp_path, MANIFEST_9, incidents)
+        with pytest.raises(UnknownSchema, match=needle):
+            read_export(tmp_path)
+
+    # 판 8 까지는 근거 칸이 없어도 되고, 재검사 실패 분류는 들 수 없다
+    _write(tmp_path, MANIFEST_8, [_eight(resolution=_decided())])
+    assert read_export(tmp_path).incidents[0]["resolution"]["decision"] == "REWORK"
+    for manifest in (MANIFEST_8, {"schemaVersion": "7", "runId": "run-1"}):
+        _write(tmp_path, manifest, [_eight(failureClass="REWORK_RECHECK", unresolved=False, fault=None)])
+        with pytest.raises(UnknownSchema, match="REWORK_RECHECK"):
             read_export(tmp_path)
