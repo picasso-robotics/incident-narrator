@@ -10,7 +10,9 @@
 
 **그리고 하나를 추린다 — `resolution`.** 버전 5 의 조치 단계에서 결정과 가상 시각만 싣고
 실 시계를 뺀다(2026-09-23). 값을 바꾸는 것이 아니라 칸을 고르는 것이고, 왜인지는
-`RESOLUTION_CARRIED` 가 적는다.
+`RESOLUTION_CARRIED` 가 적는다. 판 8 의 판단자는 종류(`kind`)만 싣고 원문 id 는 안 싣는다(`DECIDER_CARRIED`).
+
+**판 8 의 임무 버전과 현장 설정 셋은 의도에서 꺼내 따로 싣는다** — 널의 뜻이 「모름」이 아니라서다(`INTENT_LIFTED`).
 """
 
 import json
@@ -111,6 +113,9 @@ CARRIED = (
     "observedHold",
     "effectMismatch",
     "unresolved",
+    # 판 8 의 여는 종류 — `REOPENED` 는 재기동이 판단 기록의 운영자 보류로 다시 연 인시던트다. 열쇠(`incidentKey`)는
+    # 불투명한 값이라 안 싣고, `attempt` 는 재발 판정의 재료라 안 싣는다(`receiver/history.py`).
+    "openingKind",
     # 그 판정이 얼마나 센가
     "requiredEvidence",
     "reachedEvidence",
@@ -139,6 +144,23 @@ CARRIED = (
 #: 「사람의 걸음이 없다」를 「자동 회복」으로 메울 수 있다. 모르는 값은 수신기가 막는다(`receiver/export.py` `DECISIONS`).
 RESOLUTION_CARRIED = ("decision", "at")
 
+#: 판 8 의 판단자(`resolution.decidedBy {id, kind}`, picasso ADR 47)에서 설명 생성 입력에 넘기는 칸. **종류만이다.**
+#: id 는 호출자의 주장이지 인증 증명이 아니고(picasso 인계 `audit-export-8.md`), 원문 id 를 읽는 자리는 감사 기록과 승인자
+#: 연결뿐이다(`receiver/audit.py`). 질의에 id 를 실으면 설명이 그 글자를 「누가 판단했다」는 확인된 사실로 옮긴다.
+DECIDER_CARRIED = "decidedByKind"
+
+#: 판 8 의 의도 칸 넷(`intent.missionVersion` · `siteSettingsVersion` · `inDoubtGrace` · `stallWindow`). **의도 사전에서 꺼내
+#: 따로 싣는다** — 그대로 두면 `_flat` 이 널을 「모름」으로 적는데, 이 넷의 널은 모름이 아니다. 임무 버전의 널은 코드 정의
+#: (실행이 쥔 버전)이고 설정 셋의 널은 현장 설정 없이 돈 실행이다. 널이면 안 싣는다 — 이 계층이 그 뜻을 문장으로 짓지 않는다.
+#:
+#: ⚠ **설정 셋은 봉인 라운드의 값이다.** 과거 근거 기한을 정한 설정이 아니다(picasso §15.322). 그래서 한 묶음
+#: (`SEALED_SETTINGS`)에 담아 이름이 그것을 말하게 하고, 셋이 함께 있을 때만 싣는다 — 함께 널이거나 함께 있는 규칙은
+#: 수신기가 이미 대조했다(`receiver/export.py` `violations`).
+INTENT_LIFTED = ("missionVersion", "siteSettingsVersion", "inDoubtGrace", "stallWindow")
+MISSION_VERSION = "missionVersion"
+SEALED_SETTINGS = "sealedRoundSettings"
+SITE_SETTINGS = ("siteSettingsVersion", "inDoubtGrace", "stallWindow")
+
 #: 탐색 대장에서 실을 칸. `outcome` 마다 있는 칸이 다르다 — `FOUND` 에는 `cause` 가
 #: 없고 `WITHHELD` 에는 둘 다 없다. **키 부재가 곧 답이므로 채우지 않는다.**
 #:
@@ -161,7 +183,21 @@ CARRIED_SEARCH = {
     "source": "remedySource",
     "observed": "remedyObserved",
     "alternatives": "remedyAlternatives",
+    # 판 8 의 셋(2026-11-14). `SOURCE_UNOBSERVED` 의 `occupied` 는 3값이다 — 널(설비 침묵)은 안 싣고 참(«있다» 고만 했음)과
+    # 거짓은 싣는다. `DESTINATION_*` 의 목적지.
+    "occupied": "remedySourceOccupied",
+    "destination": "remedyDestination",
 }
+
+#: 판 8 의 갈래 셋 — **사람이 확인하거나 치울 일**이고 승인 가능한 조치가 아니다(셋 다 `steps` 키가 없다, picasso 인계
+#: `audit-export-8.md`). 이 줄에는 `AWAITS_PERSON` 을 싣는다. picasso 가 정한 갈래의 뜻을 옮기는 것이지 이 계층의 판정이
+#: 아니다(`VACANT` 와 같다). ⚠ 출발 미관측은 결품이 아니다 — `VACANT` 는 결품 줄에만 선다.
+AWAITING_PERSON = ("SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED")
+AWAITS_PERSON = "remedyAwaitsPerson"
+
+#: 목적지 점유 줄의 `observed` — 목적지에 있던 신원이다. 출발 결품의 `observed`(출발 자리의 신원)와 자리가 달라 같은 이름에
+#: 싣지 않는다. 널은 «있다» 고만 한 것(신원 불명)이라 안 싣는다 — 빈 자리가 아니다.
+DESTINATION_OBSERVED = "remedyDestinationObserved"
 
 #: 출발 결품 줄의 `observed` 가 널일 때 싣는 칸 — 출발 자리가 비어 있었다는 관측이다. 이름에 `Empty` 를 안 쓰는
 #: 것은 설명 골든셋 한 항목의 금칙어가 `EMPTY` 라서다.
@@ -177,15 +213,20 @@ def _search_facts(search):
     사실이 아니다. **결품 줄이 아니면 널을 그렇게 읽지 않는다** — 뜻이 정해진 것은 결품 줄의 `observed` 뿐이다.
     """
     facts = {}
+    outcome = read_field(search, "outcome")
     for key, name in CARRIED_SEARCH.items():
         value = read_field(search, key)
         if value is ABSENT:
             continue
         if value is None:
-            if key == "observed" and read_field(search, "outcome") == "SOURCE_MISSING":
+            if key == "observed" and outcome == "SOURCE_MISSING":
                 facts[VACANT] = True
             continue
+        if key == "observed" and outcome == "DESTINATION_OCCUPIED":
+            name = DESTINATION_OBSERVED
         facts[name] = value
+    if outcome in AWAITING_PERSON:
+        facts[AWAITS_PERSON] = True
     return facts
 
 
@@ -338,11 +379,16 @@ def compose(bundle, search=None, recurrence=None):
         if value is ABSENT or value is None:
             continue
         facts[key] = value
+        if key == "intent" and isinstance(value, dict):
+            facts.update(_lift_intent(facts, value))
 
-    # 조치 단계. 있을 때만, 실 시계는 빼고.
+    # 조치 단계. 있을 때만, 실 시계는 빼고. 판단자는 종류만(`DECIDER_CARRIED`).
     resolution = read_field(bundle, "resolution")
     if isinstance(resolution, dict):
         step = {k: resolution[k] for k in RESOLUTION_CARRIED if k in resolution}
+        decider = resolution.get("decidedBy")
+        if isinstance(decider, dict) and decider.get("kind"):
+            step[DECIDER_CARRIED] = decider["kind"]
         if step:  # 결정도 시각도 없는 걸음은 빈 사실이다 — 안 싣는다
             facts["resolution"] = step
 
@@ -354,6 +400,22 @@ def compose(bundle, search=None, recurrence=None):
         facts["recurrenceSeen"] = recurrence
 
     return Query(facts=facts, lookup=_lookup(bundle))
+
+
+def _lift_intent(facts, intent):
+    """판 8 의 의도 칸 넷을 의도에서 꺼낸다(`INTENT_LIFTED`). 꺼낸 의도는 `facts["intent"]` 에 두고, 실을 사실을 돌려준다.
+
+    판 5 · 6 · 7 의 의도에는 이 칸들이 없어 의도도 사실도 그대로다.
+    """
+    if not any(key in intent for key in INTENT_LIFTED):
+        return {}
+    facts["intent"] = {k: v for k, v in intent.items() if k not in INTENT_LIFTED}
+    lifted = {}
+    if intent.get(MISSION_VERSION) is not None:
+        lifted[MISSION_VERSION] = intent[MISSION_VERSION]
+    if all(intent.get(k) is not None for k in SITE_SETTINGS):
+        lifted[SEALED_SETTINGS] = {k: intent[k] for k in SITE_SETTINGS}
+    return lifted
 
 
 def _lookup(bundle):

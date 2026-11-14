@@ -37,14 +37,28 @@ def test_판이_다르면_거절한다(diagnose_request):
     with pytest.raises(ContractViolation, match="적재 판"):
         parse_request(diagnose_request(
             snapshot={"manifest": {"schemaVersion": 5}, "incidents": [], "searches": [{}]}))
-    # 적재 버전 6(2026-10-08)과 7(2026-11-14)은 받는다 — 수신기와 같은 목록을 쓴다. 8 은 모른다
+    # 적재 버전 6(2026-10-08)과 7 · 8(2026-11-14)은 받는다 — 수신기와 같은 목록을 쓴다. 9 는 모른다
     incident = {"incidentId": "incident-1", "digest": "9760fe546d", "robotId": "hum-02", "route": "SIGNAL"}
     six = parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "6"}, "incidents": [incident],
                                                    "searches": []}))
     assert six.snapshot["incidents"][0]["route"] == "SIGNAL"
     with pytest.raises(ContractViolation, match="적재 판"):
-        parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "8"}, "incidents": [incident],
+        parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "9"}, "incidents": [incident],
                                                  "searches": []}))
+    # 판 8 은 수신기와 같은 모양 대조(`violations`)를 받는다 — 정체성 칸이 빠진 줄 · 모르는 탐색 갈래는 멈춘다
+    eight = dict(incident, incidentKey="mw-1/incident-1", firstOpenedAt="2026-09-06T00:00:01Z", openingKind="NEW", attempt=0,
+                 intent={"missionVersion": 1, "siteSettingsVersion": None, "inDoubtGrace": None, "stallWindow": None},
+                 resolution={"decision": "OPERATOR_CANCEL", "at": "2026-09-06T00:00:04Z",
+                             "decidedBy": {"id": "op-close", "kind": "PERSON"}})
+    manifest8 = {"schemaVersion": "8", "instanceId": "mw-1"}
+    parsed = parse_request(diagnose_request(snapshot={"manifest": manifest8, "incidents": [eight], "searches": []}))
+    assert parsed.snapshot["incidents"][0]["openingKind"] == "NEW"
+    with pytest.raises(ContractViolation, match="openingKind"):
+        parse_request(diagnose_request(snapshot={"manifest": manifest8, "searches": [],
+                                                 "incidents": [{k: v for k, v in eight.items() if k != "openingKind"}]}))
+    with pytest.raises(ContractViolation, match="DESTINATION_CLEARED"):
+        parse_request(diagnose_request(snapshot={"manifest": manifest8, "incidents": [],
+                                                 "searches": [{"searchId": "search-1", "outcome": "DESTINATION_CLEARED"}]}))
     # 버전 7 의 판단 값 둘은 받고, 같은 값을 버전 6 이라 밝힌 줄은 수신기와 같은 목록으로 막는다
     cancelled = dict(incident, resolution={"decision": "OPERATOR_CANCEL", "at": "2026-09-06T00:00:04Z"})
     seven = parse_request(diagnose_request(snapshot={"manifest": {"schemaVersion": "7"}, "incidents": [cancelled],

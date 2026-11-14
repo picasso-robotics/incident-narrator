@@ -31,19 +31,50 @@
 앞 폭 안에 새로 선 보류도 그 줄을 싣지만 시각이 다르다. `wallClockAt` 은 따로 읽은 시계라 대지
 않는다. **다시 연 쪽이 지금 사건이면 원래 보류를 한 번 센다** — 원래 보류와 잇는 칸이 없어 같은
 자리의 진짜 앞선 사건과 가를 수 없다.
+
+⛔ **판 8 부터는 정체성 칸으로 접는다 (2026-11-14, picasso §15.322 · 인계 `audit-export-8.md`).** 사건 줄이 `incidentKey`
+(불투명, 같으면 같은 사건)와 `openingKind`(`NEW` | `REOPENED`)를 싣는다. 그래서 판 8 줄에서는 위의 시각 추정(`_reopened`)을
+안 쓰고, **같은 `incidentKey` 를 지금 사건과 과거 목록 모두에서 한 사건으로 접는다** — 다시 연 쪽이 지금 사건이어도 원래
+보류(같은 열쇠)를 세지 않는다. 판 5 · 6 · 7 줄에는 열쇠가 없어 위의 추정이 여전히 유일한 근거다.
+
+- **앞뒤는 처음 선 시각으로 잰다.** 다시 연 줄의 `at` 은 다시 연 시각이고 사건이 선 것은 `firstOpenedAt` 이다. 그래서 열쇠가
+  있는 줄은 지금 사건도 과거 줄도 `firstOpenedAt` 으로 견준다 — 원래 보류를 못 본 채 다시 연 줄만 받았어도 그 사건은 한 번
+  센다(같은 열쇠의 다른 줄과는 접힌다).
+- **`digest` 도 계속 접는다.** 같은 시드의 재실행은 인스턴스가 달라 열쇠가 다르지만 `digest` 가 같다(판 8 도 요약은 그대로다).
+- **연결 불명(열쇠 널인 `REOPENED`)은 접지도 세지도 않는다.** 실행 · 단위 · 분류로 추측해 원래 보류에 잇지 않고, 재기동마다
+  같은 보류가 널 열쇠 줄을 하나씩 더 낼 수 있어 「널이면 매번 새 사건」으로도 세지 않는다. 대신 셈에 `linkUnknownSeen` 을
+  싣는다 — 같은 기체 · 같은 분류(또는 같은 자리 · 같은 분류)의 연결 불명 줄이 이 층이 본 것 안에서 지금 사건보다 앞에 섰거나
+  지금 사건이 그런 줄이면 참이다. 지금 사건이 연결 불명이면 원래 보류가 앞선 사건으로 한 번 셀 수 있다는 표지이기도 하다(가를 칸이 없다).
+- **`attempt` 는 잇는 열쇠가 아니다.** 같은 시도에서 미확정과 보류가 각각 인시던트를 열 수 있고, 조치 실패로 선 미발행
+  보류는 거부 때 인시던트의 열쇠를 싣는다. 여기서는 읽지 않는다.
 """
 
 #: 재발을 가르는 데 필요한 칸. 이것만 기록에 남긴다 — 번들 전체를 다시 적을 이유가 없다.
-SUBJECT_KEYS = ("robotId", "failureClass", "unitId", "at", "digest")
+#: 판 8 의 정체성 셋(`incidentKey` · `firstOpenedAt` · `openingKind`)도 남긴다 — 지난 번들의 줄도 열쇠로 접으려면 기록에 있어야 한다.
+SUBJECT_KEYS = ("robotId", "failureClass", "unitId", "at", "digest", "incidentKey", "firstOpenedAt", "openingKind")
 
 #: 다시 연 인시던트의 표시. 주체와 함께 기록에 남아 지난 번들의 것도 가른다.
 REOPENED = "reopened"
 
+#: 판 8 의 연결 불명 — 다시 연 인시던트인데 열쇠가 널이다. 주체와 함께 기록에 남는다.
+LINK_UNKNOWN = "linkUnknown"
+
+#: 셈에 붙는 연결 불명 표지. **연결 불명 줄이 끼었을 때만 싣는다** — 없을 때 거짓을 늘 실으면 판 5 · 6 · 7 의 질의가 바뀐다.
+LINK_UNKNOWN_SEEN = "linkUnknownSeen"
+
 
 def subject(bundle):
-    """번들에서 주체만. **없는 칸은 안 싣는다** — 널을 값으로 바꾸지 않는다."""
+    """번들에서 주체만. **없는 칸은 안 싣는다** — 널을 값으로 바꾸지 않는다.
+
+    판 8 줄(`openingKind` 키가 있다)은 다시 연 것을 `openingKind` 로 가르고, 판 5 · 6 · 7 줄은 근거 창의 시각으로 추정한다.
+    """
     me = {key: bundle[key] for key in SUBJECT_KEYS if bundle.get(key) is not None}
-    if _reopened(bundle):
+    if "openingKind" in bundle:
+        if bundle["openingKind"] == "REOPENED":
+            me[REOPENED] = True
+            if bundle.get("incidentKey") is None:
+                me[LINK_UNKNOWN] = True
+    elif _reopened(bundle):
         me[REOPENED] = True
     return me
 
@@ -66,28 +97,60 @@ def _instant(text):
     return head, fraction.rstrip("0")
 
 
+def _opened(me):
+    """사건이 선 시각 — 열쇠가 있으면 처음 선 시각, 없으면 `at`."""
+    if me.get("incidentKey") and me.get("firstOpenedAt"):
+        return me["firstOpenedAt"]
+    return me.get("at")
+
+
+def _before(other, me):
+    """`other` 가 `me` 보다 엄격히 앞에 섰나. 같은 시각은 앞이 아니고, 시각을 모르면 앞으로 친다(판 5 이래의 규칙 그대로)."""
+    mine, theirs = _opened(me), _opened(other)
+    if not (mine and theirs):
+        return True
+    return _instant(theirs) < _instant(mine)
+
+
 def count_recurrence(current, prior):
     """`current` 앞에 같은 로봇·같은 분류 / 같은 자리·같은 분류가 몇 번 있었나.
 
     :param prior: 주체 사전들 — 저장소가 본 것과 지금 번들의 것을 합친 목록.
-    :returns: ``{"sameRobotSameClass": n, "sameUnitSameClass": m}``
+    :returns: ``{"sameRobotSameClass": n, "sameUnitSameClass": m}`` — 연결 불명 줄이 끼었으면 ``"linkUnknownSeen": True`` 가 붙는다.
     """
     me = subject(current)
-    counted = set()
+    mine = me.get("incidentKey")
+    counted_digests, counted_keys = set(), set()
     same_robot = same_unit = 0
+    unknown = bool(me.get(LINK_UNKNOWN))
     for other in prior:
         digest = other.get("digest")
-        if not digest or digest == me.get("digest") or digest in counted:
-            continue
-        if other.get(REOPENED):
+        key = other.get("incidentKey")
+        if not digest or digest == me.get("digest") or digest in counted_digests:
             continue
         if other.get("failureClass") != me.get("failureClass"):
             continue
-        if me.get("at") and other.get("at") and other["at"] >= me["at"]:
+        robot = other.get("robotId") == me.get("robotId")
+        unit = bool(other.get("unitId")) and other.get("unitId") == me.get("unitId")
+        if other.get(LINK_UNKNOWN):
+            # 앞에 선 것만 — 뒤의 줄을 표지로 실으면 미래에 대한 사실이 된다
+            unknown = unknown or ((robot or unit) and _before(other, me))
             continue
-        counted.add(digest)
-        if other.get("robotId") == me.get("robotId"):
+        if key:
+            if key == mine or key in counted_keys:
+                continue
+        elif other.get(REOPENED):
+            continue
+        if not _before(other, me):
+            continue
+        counted_digests.add(digest)
+        if key:
+            counted_keys.add(key)
+        if robot:
             same_robot += 1
-        if other.get("unitId") and other.get("unitId") == me.get("unitId"):
+        if unit:
             same_unit += 1
-    return {"sameRobotSameClass": same_robot, "sameUnitSameClass": same_unit}
+    seen = {"sameRobotSameClass": same_robot, "sameUnitSameClass": same_unit}
+    if unknown:
+        seen[LINK_UNKNOWN_SEEN] = True
+    return seen

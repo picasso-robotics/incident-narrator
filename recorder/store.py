@@ -66,6 +66,7 @@ def _encode(record):
         "elapsed": record.elapsed,
         "diagnostics": record.diagnostics,
         "subject": record.subject,
+        "audit": record.audit,
     }
 
 
@@ -81,4 +82,5 @@ def _decode(row):
         elapsed=row.get("elapsed", 0.0),
         diagnostics=row.get("diagnostics") or {},
         subject=row.get("subject") or {},
+        audit=row.get("audit") or {},
     )

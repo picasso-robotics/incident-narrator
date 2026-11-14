@@ -35,6 +35,9 @@ class Record:
     #: 어느 사건이었나 — 재발을 세는 데 필요한 칸만(`receiver/history.py`). 조치 탐색 기록과
     #: 옛 기록에는 없다. **비어 있으면 「모른다」이지 「없었다」가 아니다.**
     subject: dict = field(default_factory=dict)
+    #: 판단자 원문의 감사 항목(판 8, `receiver/audit.py`). **질의에도 코퍼스에도 안 실린다** — 원문 id 를 읽는 자리는 감사와
+    #: 승인자 연결뿐이다. 판단이 없거나 판 7 까지의 줄이면 비어 있고, 그것은 「댈 것이 없다」다.
+    audit: dict = field(default_factory=dict)
 
 
 def _diagnostics(data):
