@@ -52,7 +52,7 @@ def test_모르는_판은_읽지_않는다(tmp_path):
     export = read_export(tmp_path)
     assert export.manifest["schemaVersion"] == "6"
     assert export.incidents[0]["route"] == "SIGNAL" and export.incidents[0]["failureClass"] == "SIGNAL_DEADLINE"
-    for unknown in ("4", "10", 6):
+    for unknown in ("4", "11", 6):
         (tmp_path / "manifest.json").write_text(f'{{"schemaVersion": {unknown!r}}}'.replace("'", '"'), encoding="utf-8")
         with pytest.raises(UnknownSchema):
             read_export(tmp_path)

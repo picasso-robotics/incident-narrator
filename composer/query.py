@@ -16,6 +16,9 @@
 
 **판 9 의 재작업 근거는 확인을 말하는 관측만 조치 단계 안에 싣는다**(`REWORK_CHECKED`) — 관측 없음과 설비 침묵을 확인으로도,
 「확인 안 함」으로도 짓지 않으려는 것이다. 재검사 실패 줄에는 그 갈래의 뜻을 표지로 싣는다(`REWORK_NOT_ISSUED`).
+
+**판 10 의 리비전 제거 사건은 같은 실행의 사건 줄 질의에 「리비전 N 이 범위에서 뺌」으로 싣는다**(`REVISION_REMOVED`) — 실패 ·
+취소 · 완료로 접지 않으려는 것이다.
 """
 
 import json
@@ -176,6 +179,35 @@ HOLD_EMPTY = "HOLD_KIND_EMPTY"
 #: 과 같은 이유 — 이 계층의 판정이 아니다).
 REWORK_RECHECK = "REWORK_RECHECK"
 REWORK_NOT_ISSUED = "reworkNotIssued"
+
+#: 판 10 의 리비전 제거 사건(`revision-removals.jsonl`, picasso §15.329 · 인계 `revision-removal-10.md`)을 **같은 실행의 사건 줄**
+#: 질의에 싣는 칸. 사건마다 고정 문구 하나(`REVISION_SCOPE`, N 은 지운 리비전의 작업 지시 버전 `toVersion`)와 지우기 전 버전 ·
+#: 뺀 단위 id(실행 열의 순서) · 가상 시각을 단다. 같은 실행의 단계 위치(`step.plan`)가 리비전 전후로 줄어든 것을 설명이 이 사건으로
+#: 말할 재료다 — 없으면 계획에서 단위가 까닭 없이 사라진 것처럼 읽힌다.
+#:
+#: ⚠ **이 사건은 실패 · 취소 · 완료가 아니다.** 인시던트를 열지 않고 사람의 판단도 아니다(그래서 `resolution` 에 넣지 않는다).
+#: 문구가 「범위에서 뺌」을 말하게 하고, 단위의 `state`(`PENDING` | `FAILED`)는 안 싣는다 — 지울 때의 상태이지 결과가 아닌데
+#: `FAILED` 가 실리면 설명이 그 단위를 「실패」로 접는다(그 `FAILED` 는 태스크 없는 계획 실패다). 실 시계는 `resolution` 과 같은
+#: 이유로 안 싣는다. 실행 id 는 인스턴스 안의 셈이라 같은 벌(같은 `instanceId`) 안에서만 맞춘다 — 부르는 쪽이 그 벌의 레지스터를
+#: 넘긴다(`receiver/scan.py` `Batch.revision_removals`). 넘기지 않거나 같은 실행의 사건이 없으면 이 칸이 안 선다 — 「뺀 것이
+#: 없다」로 짓지 않는다.
+REVISION_REMOVED = "revisionRemoved"
+REVISION_SCOPE = "리비전 {version} 이 범위에서 뺌"
+
+
+def _revision_removed(bundle, removals):
+    """같은 실행의 리비전 제거 사건을 질의의 사실로 옮긴다(`REVISION_REMOVED`). 없으면 빈 목록."""
+    execution = read_field(bundle, "executionId")
+    if execution is ABSENT or execution is None:
+        return []
+    return [
+        {"scope": REVISION_SCOPE.format(version=row.get("toVersion")),
+         "fromVersion": row.get("fromVersion"), "toVersion": row.get("toVersion"),
+         "removedUnits": [unit.get("unitId") for unit in row.get("removed") or () if isinstance(unit, dict)],
+         "at": row.get("at")}
+        for row in removals or ()
+        if isinstance(row, dict) and row.get("executionId") == execution
+    ]
 
 
 def _rework_checked(basis):
@@ -404,7 +436,7 @@ def _marked(value):
     return value
 
 
-def compose(bundle, search=None, recurrence=None):
+def compose(bundle, search=None, recurrence=None, removals=None):
     """번들 하나를, 쌍이 있으면 탐색 하나와 함께 질의로 옮긴다.
 
     **쌍은 대개 없다.** 탐색은 접수 관문 안에서 돌고 관문이 막으면 실행이 안
@@ -420,6 +452,9 @@ def compose(bundle, search=None, recurrence=None):
 
     조치 단계(`resolution`)는 있을 때만, 결정과 가상 시각만 싣는다 — 결정도 시각도
     없는 걸음은 빈 사실이라 안 싣는다.
+
+    :param removals: 같은 벌의 리비전 제거 사건(판 10). 이 줄과 실행이 같은 것만 「리비전 N 이 범위에서 뺌」으로
+        싣는다(`REVISION_REMOVED`).
     """
     facts = {}
     for key in CARRIED:
@@ -445,6 +480,10 @@ def compose(bundle, search=None, recurrence=None):
 
     if read_field(bundle, "failureClass") == REWORK_RECHECK:
         facts[REWORK_NOT_ISSUED] = True
+
+    removed = _revision_removed(bundle, removals)
+    if removed:  # 판 10 — 같은 실행의 범위 축소. 실패 · 취소 · 완료가 아니다(`REVISION_REMOVED`)
+        facts[REVISION_REMOVED] = removed
 
     facts.update(_search_facts(search or {}))
 
