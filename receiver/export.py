@@ -1,11 +1,13 @@
 """번들 읽기 — `BOUNDARY.md` §3.2 의 적재 규약."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 MANIFEST = "manifest.json"
 INCIDENTS = "incidents.jsonl"
 SEARCHES = "remedy-searches.jsonl"
+#: 판 10 의 셋째 레지스터(picasso `LedgerExport.REVISION_REMOVALS`). 판 9 이하의 벌에는 없다.
+REMOVALS = "revision-removals.jsonl"
 
 
 #: 이 계층이 읽을 줄 아는 적재 규약의 버전(picasso `LedgerExport.SCHEMA_VERSION`).
@@ -60,9 +62,18 @@ SEARCHES = "remedy-searches.jsonl"
 #: 빠져 **같은 시드의 `digest` 는 판 8 과 같다.** 읽는 자리: 질의의 확인 사실(`composer/query.py` `REWORK_CHECKED`)과 재검사 실패
 #: 표지(`REWORK_NOT_ISSUED`). 모양은 `violations` 가 대조한다(`_resolution_9`).
 #:
+#: ⛔ **9 에서 10 으로 올랐다 (2026-11-16, picasso §15.329 · 인계 `revision-removal-10.md`).** 사건 줄 · 탐색 줄의 바이트는 그대로이고
+#: **같은 시드의 `digest` 는 판 9 와 같다.** 한 벌에 셋째 레지스터 `revision-removals.jsonl`(빈 파일일 수 있음)이 놓이고 안내
+#: `counts` 에 `revisionRemovals`(정수)가 붙었다. 한 줄은 리비전이 작업 지시에서 항목을 빼며 **손대지 않은 단위**(아직 내지 않은
+#: `PENDING`, 태스크 없는 계획 실패 `FAILED`)를 실행에서 지운 사건 하나다 — `{executionId, jobOrderId, robotId, fromVersion,
+#: toVersion, removed: [{unitId, state}], at, wallClockAt}`. ⚠ **실패 · 취소 · 완료가 아니다** — 인시던트를 열지 않고 사람의 판단도
+#: 아니다. 이 계층은 같은 실행의 사건 줄 질의에 「리비전 N 이 범위에서 뺌」으로만 싣는다(`composer/query.py` `REVISION_REMOVED`).
+#: 판 9 이하에는 이 파일이 없고 사건도 생기지 않았다 — 없음과 빈 파일을 가르지 않는다(판 9 이하는 빈 목록). 모양은
+#: `removal_violations` 가 대조한다.
+#:
 #: **아는 버전만 받는다.** 범위로 받으면 모르는 버전을 아는 척 읽게 되고, 그때 어긋난 칸이
 #: 이 계층에서는 「값이 없다」로 보인다 — 형식이 바뀐 것과 관측이 없는 것이 같은 모양이 된다.
-SCHEMA_VERSIONS = ("5", "6", "7", "8", "9")
+SCHEMA_VERSIONS = ("5", "6", "7", "8", "9", "10")
 
 #: 버전마다 사건 줄 `resolution.decision` 이 들 수 있는 값(picasso `docs/glossary.md` §7 · 인계 `hold-refusal-recovery.md`).
 #: 5 · 6 은 `REWORK` · `CONFIRM_DONE` 둘이고 7 에서 둘이 더해졌다. `resolution` 이 null 이거나 `decision` 키가 없는
@@ -73,6 +84,7 @@ DECISIONS = {
     "7": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
     "8": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
     "9": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
+    "10": ("REWORK", "CONFIRM_DONE", "OPERATOR_CANCEL", "REMEDY_APPLIED"),
 }
 
 #: 버전마다 탐색 줄 `outcome` 이 들 수 있는 값(picasso `docs/orchestration.md` §6 레지스터의 하위 범주). 판 4 의
@@ -86,6 +98,8 @@ OUTCOMES = {
           "SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"),
     "9": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING",
           "SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"),
+    "10": ("FOUND", "NONE", "WITHHELD", "SOURCE_MISSING",
+           "SOURCE_UNOBSERVED", "DESTINATION_OCCUPIED", "DESTINATION_UNOBSERVED"),
 }
 
 #: `steps` 키가 없어야 하는 갈래 — 승인할 걸음이 없는 응답이다(`WITHHELD` 는 가림, 나머지는 승인할 것이 없음). 이 갈래에
@@ -104,7 +118,17 @@ INTENT_KEYS_8 = ("missionVersion", "siteSettingsVersion", "inDoubtGrace", "stall
 SITE_SETTINGS = ("siteSettingsVersion", "inDoubtGrace", "stallWindow")
 
 #: 판 8 의 모양(정체성 · 판단자 · 의도 · `instanceId`)을 지는 버전들. 판 9 는 판 8 의 칸을 그대로 지고 근거 한 칸을 더한다.
-IDENTITY_VERSIONS = ("8", "9")
+IDENTITY_VERSIONS = ("8", "9", "10")
+
+#: 판 9 의 모양(재작업 근거 · 재검사 실패)을 지는 버전들. 판 10 의 사건 줄은 판 9 와 같은 바이트다.
+REWORK_VERSIONS = ("9", "10")
+
+#: 판 10 의 리비전 제거 사건(`revision-removals.jsonl`, picasso §15.329)을 지는 버전들과 그 줄의 칸(picasso
+#: `LedgerExport.revisionRemovalLine`). `removed` 의 `state` 는 손대지 않은 단위의 둘뿐이다 — 발행했거나 끝난 단위가 든 항목을
+#: 빼는 리비전은 picasso 가 거부해 이 파일에 안 나온다.
+REMOVAL_VERSIONS = ("10",)
+REMOVAL_KEYS = ("executionId", "jobOrderId", "robotId", "fromVersion", "toVersion", "removed", "at", "wallClockAt")
+REMOVED_STATES = ("PENDING", "FAILED")
 
 #: 판 9 의 재작업 근거(`resolution.reworkBasis`, picasso §15.323)에 키가 있어야 하는 칸 — 안의 빈 칸도 널로 실린다(인계
 #: `rework-generalized.md`). 손(`hold`)은 `{kind, objectRef}`, 자리(`source` · `destination`)는 `{slotId, occupied, identity,
@@ -133,6 +157,8 @@ class Export:
     incidents: list
     searches: list
     manifest: dict
+    #: 판 10 의 리비전 제거 사건(`REMOVALS`). 판 9 이하는 빈 목록이다 — 그 판에서는 사건이 생기지 않았다.
+    revision_removals: list = field(default_factory=list)
 
 
 def read_export(directory):
@@ -158,12 +184,19 @@ def read_export(directory):
         raise UnknownSchema(f"판 {found} 가 들 수 있는 판단은 {list(DECISIONS[found])} 인데 {strange} 가 왔다")
     searches = _read_lines(directory / SEARCHES)
     problems = violations(found, manifest, incidents, searches)
+    removals_path = directory / REMOVALS
+    if found in REMOVAL_VERSIONS and not removals_path.exists():
+        # picasso 는 판 10 의 벌마다 이 파일을 쓴다(빈 파일이어도) — 없으면 반쯤 쓰인 벌이거나 판이 어긋난 것이다
+        problems.append(f"{REMOVALS} 가 없다")
+    removals = _read_lines(removals_path)
+    problems.extend(removal_violations(found, manifest, removals))
     if problems:
         raise UnknownSchema(f"판 {found} 의 모양이 아니다: {problems}")
     return Export(
         incidents=incidents,
         searches=searches,
         manifest=manifest,
+        revision_removals=removals,
     )
 
 
@@ -196,6 +229,7 @@ def violations(version, manifest, incidents, searches):
     - 판 8 판단: `resolution` 이 있으면 `decidedBy` 가 `{id, kind}` 이고 `kind` 가 아는 값인가
     - 판 9 는 판 8 의 대조를 다 받고, 판단마다 `reworkBasis` 키가 있으며 값이 널이거나 근거의 모양인가(`_resolution_9`),
       재검사 실패(`REWORK_RECHECK`) 줄이 `unresolved: false` 이고 `fault` 가 널인가. 판 8 까지는 `REWORK_RECHECK` 를 들 수 없다
+    - 판 10 의 사건 줄 · 탐색 줄은 판 9 와 같은 대조를 받는다. 리비전 제거 레지스터는 `removal_violations` 가 따로 본다
     """
     found = []
     known = OUTCOMES.get(version, ())
@@ -207,7 +241,7 @@ def violations(version, manifest, incidents, searches):
             found.append(f"{row.get('searchId')}: 모르는 outcome {outcome!r}")
         elif outcome in STEPLESS and "steps" in row:
             found.append(f"{row.get('searchId')}: {outcome} 에 steps 키가 있다")
-    if version != "9":
+    if version not in REWORK_VERSIONS:
         found.extend(f"{row.get('incidentId')}: 판 {version} 은 {REWORK_RECHECK} 를 들 수 없다" for row in incidents
                      if isinstance(row, dict) and row.get("failureClass") == REWORK_RECHECK)
     if version not in IDENTITY_VERSIONS:
@@ -217,9 +251,62 @@ def violations(version, manifest, incidents, searches):
     for row in incidents:
         if isinstance(row, dict):
             found.extend(f"{row.get('incidentId')}: {p}" for p in _incident_8(row))
-            if version == "9":
+            if version in REWORK_VERSIONS:
                 found.extend(f"{row.get('incidentId')}: {p}" for p in _incident_9(row))
     return found
+
+
+def removal_violations(version, manifest, removals):
+    """판 10 의 리비전 제거 레지스터의 어긋난 자리들(어긋남이 없으면 빈 목록). 수신기(`read_export`)가 부른다.
+
+    - 판 9 이하: 사건이 한 줄이라도 있으면 어긋남이다(그 판은 이 레지스터를 안 낸다)
+    - 판 10 안내: `counts.revisionRemovals` 가 정수이고 줄 수와 같은가(`manifest` 가 `None` 이면 안 본다)
+    - 판 10 줄: 여덟 칸의 키가 있고, id 셋 · 시각 둘이 비지 않은 글자이며, 버전 둘이 정수이고 `toVersion` 이 더 크며(리비전이
+      버전을 건너뛰면 차가 1 이 아니다), `removed` 가 `{unitId, state}` 의 비지 않은 배열이고 `state` 가 `PENDING` | `FAILED` 인가
+    """
+    if version not in REMOVAL_VERSIONS:
+        return [f"판 {version} 은 {REMOVALS} 를 들 수 없다"] if removals else []
+    found = []
+    if manifest is not None:
+        counts = manifest.get("counts")
+        count = counts.get("revisionRemovals") if isinstance(counts, dict) else None
+        if not _is_int(count):
+            found.append(f"manifest: counts.revisionRemovals 가 정수가 아니다: {count!r}")
+        elif count != len(removals):
+            found.append(f"manifest: counts.revisionRemovals {count} 와 {REMOVALS} 의 줄 수 {len(removals)} 가 다르다")
+    for index, row in enumerate(removals, 1):
+        found.extend(f"{REMOVALS} {index} 째 줄: {p}" for p in _removal_10(row))
+    return found
+
+
+def _removal_10(row):
+    """판 10 리비전 제거 사건 한 줄의 어긋남."""
+    if not isinstance(row, dict):
+        return [f"객체가 아니다: {row!r}"]
+    missing = [k for k in REMOVAL_KEYS if k not in row]
+    if missing:
+        return [f"{missing} 키가 없다"]
+    problems = [f"{key} 는 비지 않은 글자다: {row[key]!r}"
+                for key in ("executionId", "jobOrderId", "robotId", "at", "wallClockAt")
+                if not (isinstance(row[key], str) and row[key])]
+    before, after = row["fromVersion"], row["toVersion"]
+    if not (_is_int(before) and _is_int(after)):
+        problems.append(f"fromVersion · toVersion 은 정수다: {before!r} · {after!r}")
+    elif after <= before:
+        problems.append(f"toVersion 은 fromVersion 보다 크다: {before} → {after}")
+    removed = row["removed"]
+    if not (isinstance(removed, list) and removed):
+        problems.append(f"removed 는 비지 않은 배열이다: {removed!r}")
+    else:
+        for unit in removed:
+            if not (isinstance(unit, dict) and isinstance(unit.get("unitId"), str) and unit["unitId"]
+                    and unit.get("state") in REMOVED_STATES):
+                problems.append(f"removed 의 항목이 {{unitId, state: PENDING | FAILED}} 가 아니다: {unit!r}")
+    return problems
+
+
+def _is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _incident_9(row):

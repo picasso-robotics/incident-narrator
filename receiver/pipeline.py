@@ -35,7 +35,7 @@ def explain(batch, search, limit=3, prior=()):
     history = list(prior) + list(batch.history)
     records = []
     for bundle in batch.incidents:
-        query = compose(bundle, recurrence=count_recurrence(bundle, history))
+        query = compose(bundle, recurrence=count_recurrence(bundle, history), removals=batch.revision_removals)
         record = _one(bundle, query, batch.manifest, search, limit, who=subject(bundle))
         # 판단자 원문은 설명 옆의 감사 항목으로만 남는다 — 질의(`query`)에는 종류만 들어갔다(`receiver/audit.py`).
         audit = decision_audit(bundle)

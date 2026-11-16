@@ -28,6 +28,9 @@ class Batch:
     #: 옆이지 뒤가 아니라(불변식 3) 미처리분(`searches`)이 아니라 전체에서 고른다. 이 중 이
     #: 실행에서 아직 안 부른 것은 `approval.pending` 이 승인 로그로 거른다.
     proposals: list = field(default_factory=list)
+    #: 이 번들의 리비전 제거 사건 전부(판 10, 판 9 이하는 빈 목록). 같은 실행의 사건 줄 질의가 「리비전 N 이 범위에서 뺌」을
+    #: 싣는 재료다(`composer/query.py` `REVISION_REMOVED`) — 이미 설명한 사건과 무관하게 전체를 든다.
+    revision_removals: list = field(default_factory=list)
 
 
 def scan(directory, seen):
@@ -45,4 +48,5 @@ def scan(directory, seen):
         manifest=export.manifest,
         history=[subject(b) for b in export.incidents],
         proposals=candidates(export.searches),
+        revision_removals=list(export.revision_removals),
     )
